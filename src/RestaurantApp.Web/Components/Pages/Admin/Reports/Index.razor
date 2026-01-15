@@ -1,0 +1,388 @@
+@page "/admin/reports"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.ReportApiService ReportApi
+@inject RestaurantApp.Web.Services.DeliveryApiService DeliveryApi
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Reports & Analytics - Restaurant Admin</PageTitle>
+
+<div class="reports-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Reports & Analytics</h1>
+            <p class="page-subtitle">Business insights and performance metrics</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-outline-primary" @onclick="ExportToCSV" disabled="@IsLoading">
+                <i class="bi bi-download"></i> Export CSV
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="LoadReportsData">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading reports...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Overview Cards -->
+        <div class="overview-grid">
+            <div class="overview-card revenue">
+                <div class="card-icon">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+                <div class="card-content">
+                    <span class="card-value">@TotalRevenue.ToString("N2") ج.م</span>
+                    <span class="card-label">Total Revenue</span>
+                </div>
+            </div>
+
+            <div class="overview-card orders">
+                <div class="card-icon">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <div class="card-content">
+                    <span class="card-value">@TotalOrders</span>
+                    <span class="card-label">Total Orders</span>
+                </div>
+            </div>
+
+            <div class="overview-card customers">
+                <div class="card-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="card-content">
+                    <span class="card-value">@UniqueCustomers</span>
+                    <span class="card-label">Unique Customers</span>
+                </div>
+            </div>
+
+            <div class="overview-card average">
+                <div class="card-icon">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <div class="card-content">
+                    <span class="card-value">@AverageOrderValue.ToString("N2") ج.م</span>
+                    <span class="card-label">Avg Order Value</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Status Distribution -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Order Status Distribution</h3>
+                </div>
+                <div class="chart-body">
+                    @if (!OrderStatusData.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p>No order data available</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="status-chart">
+                            @foreach (var status in OrderStatusData)
+                            {
+                                <div class="status-item">
+                                    <div class="status-header">
+                                        <span class="status-name">@status.Name</span>
+                                        <span class="status-value">@status.Count (@status.Percentage%)</span>
+                                    </div>
+                                    <div class="status-bar">
+                                        <div class="bar @status.Name.ToLower()" style="width: @(status.Percentage)%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Branch Performance -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Branch Performance</h3>
+                </div>
+                <div class="chart-body">
+                    @if (!BranchPerformance.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-building" style="font-size: 2rem;"></i>
+                            <p>No branch data available</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="branch-performance">
+                            @foreach (var branch in BranchPerformance)
+                            {
+                                <div class="branch-item">
+                                    <div class="branch-header">
+                                        <i class="bi bi-building"></i>
+                                        <span class="branch-name">@branch.Name</span>
+                                    </div>
+                                    <div class="branch-metrics">
+                                        <div class="metric">
+                                            <span class="metric-label">Orders</span>
+                                            <span class="metric-value">@branch.Orders</span>
+                                        </div>
+                                        <div class="metric">
+                                            <span class="metric-label">Revenue</span>
+                                            <span class="metric-value">@branch.Revenue.ToString("N2") ج.م</span>
+                                        </div>
+                                    </div>
+                                    <div class="branch-bar">
+                                        <div class="bar" style="width: @branch.Percentage%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Delivery Performance -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Delivery Performance</h3>
+                </div>
+                <div class="chart-body">
+                    @if (!DeliveryPerformance.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-truck" style="font-size: 2rem;"></i>
+                            <p>No delivery data available</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="branch-performance">
+                            @foreach (var delivery in DeliveryPerformance)
+                            {
+                                <div class="branch-item">
+                                    <div class="branch-header">
+                                        <i class="bi bi-person-badge"></i>
+                                        <span class="branch-name">@delivery.DeliveryName</span>
+                                    </div>
+                                    <div class="branch-metrics">
+                                        <div class="metric">
+                                            <span class="metric-label">Orders</span>
+                                            <span class="metric-value">@delivery.TotalOrders</span>
+                                        </div>
+                                        <div class="metric">
+                                            <span class="metric-label">Revenue</span>
+                                            <span class="metric-value">@delivery.TotalRevenue.ToString("N2") ج.م</span>
+                                        </div>
+                                    </div>
+                                    <div class="branch-bar">
+                                        <div class="bar" style="width: @delivery.Percentage%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    
+    private decimal TotalRevenue { get; set; } = 0;
+    private int TotalOrders { get; set; } = 0;
+    private int UniqueCustomers { get; set; } = 0;
+    private decimal AverageOrderValue { get; set; } = 0;
+
+    private List<StatusData> OrderStatusData { get; set; } = new();
+    private List<BranchData> BranchPerformance { get; set; } = new();
+    private List<PopularItemData> PopularItems { get; set; } = new();
+    private List<DeliveryPerformanceData> DeliveryPerformance { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReportsData();
+    }
+
+    private async Task LoadReportsData()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load business summary
+            var summary = await ReportApi.GetSummaryAsync();
+            if (summary != null)
+            {
+                TotalRevenue = summary.TotalRevenue;
+                TotalOrders = summary.TotalOrders;
+                UniqueCustomers = summary.TotalCustomers;
+                AverageOrderValue = summary.AverageOrderValue;
+            }
+
+            // Load order report
+            var orderReport = await ReportApi.GetOrderReportAsync();
+            if (orderReport != null)
+            {
+                OrderStatusData = new List<StatusData>
+                {
+                    new StatusData { Name = "Pending", Count = orderReport.PendingOrders },
+                    new StatusData { Name = "Confirmed", Count = orderReport.ConfirmedOrders },
+                    new StatusData { Name = "Preparing", Count = orderReport.PreparingOrders },
+                    new StatusData { Name = "Ready", Count = orderReport.ReadyOrders },
+                    new StatusData { Name = "OutForDelivery", Count = orderReport.OutForDeliveryOrders },
+                    new StatusData { Name = "Delivered", Count = orderReport.DeliveredOrders },
+                    new StatusData { Name = "Cancelled", Count = orderReport.CancelledOrders }
+                }.Where(s => s.Count > 0).ToList();
+
+                var total = OrderStatusData.Sum(s => s.Count);
+                foreach (var status in OrderStatusData)
+                {
+                    status.Percentage = total > 0 ? (int)((double)status.Count / total * 100) : 0;
+                }
+            }
+
+            // Load branch performance
+            var branchPerformance = await ReportApi.GetBranchPerformanceAsync();
+            if (branchPerformance != null)
+            {
+                BranchPerformance = branchPerformance.Select(b => new BranchData
+                {
+                    Name = b.BranchNameEn,
+                    Orders = b.OrderCount,
+                    Revenue = b.Revenue
+                }).ToList();
+
+                var maxRevenue = BranchPerformance.Any() ? BranchPerformance.Max(b => b.Revenue) : 1;
+                foreach (var branch in BranchPerformance)
+                {
+                    branch.Percentage = (int)((double)branch.Revenue / (double)maxRevenue * 100);
+                }
+            }
+
+            // Load popular items
+            var popularItems = await ReportApi.GetPopularItemsAsync(limit: 10);
+            if (popularItems != null)
+            {
+                PopularItems = popularItems.Select(i => new PopularItemData
+                {
+                    Name = i.NameEn,
+                    Quantity = i.QuantitySold,
+                    Revenue = i.Revenue
+                }).ToList();
+            }
+
+            // Load delivery performance
+            var deliveryStats = await DeliveryApi.GetAllDeliveryStatsAsync();
+            if (deliveryStats != null && deliveryStats.Any())
+            {
+                DeliveryPerformance = deliveryStats.Select(d => new DeliveryPerformanceData
+                {
+                    DeliveryName = d.DeliveryName,
+                    TotalOrders = d.TotalOrders,
+                    TotalRevenue = d.TotalRevenue
+                }).ToList();
+
+                var maxRevenue = DeliveryPerformance.Any() ? DeliveryPerformance.Max(d => d.TotalRevenue) : 1;
+                foreach (var delivery in DeliveryPerformance)
+                {
+                    delivery.Percentage = maxRevenue > 0 ? (int)((double)delivery.TotalRevenue / (double)maxRevenue * 100) : 0;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading reports: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToCSV()
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            
+            // Overview section
+            sb.AppendLine("Section,Metric,Value");
+            sb.AppendLine($"Overview,Total Revenue,{TotalRevenue}");
+            sb.AppendLine($"Overview,Total Orders,{TotalOrders}");
+            sb.AppendLine($"Overview,Unique Customers,{UniqueCustomers}");
+            sb.AppendLine($"Overview,Average Order Value,{AverageOrderValue}");
+            sb.AppendLine();
+
+            // Branch Performance
+            sb.AppendLine("Branch Performance,Orders,Revenue");
+            foreach (var branch in BranchPerformance)
+            {
+                sb.AppendLine($"{branch.Name},{branch.Orders},{branch.Revenue}");
+            }
+            sb.AppendLine();
+
+            // Delivery Performance
+            sb.AppendLine("Delivery Performance,Orders,Revenue");
+            foreach (var delivery in DeliveryPerformance)
+            {
+                sb.AppendLine($"{delivery.DeliveryName},{delivery.TotalOrders},{delivery.TotalRevenue}");
+            }
+
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.downloadCSV", $"Restaurant_Report_{DateTime.Now:yyyyMMdd}.csv", sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting CSV: {ex.Message}");
+        }
+    }
+
+    private class StatusData
+    {
+        public string Name { get; set; } = "";
+        public int Count { get; set; }
+        public int Percentage { get; set; }
+    }
+
+    private class BranchData
+    {
+        public string Name { get; set; } = "";
+        public int Orders { get; set; }
+        public decimal Revenue { get; set; }
+        public int Percentage { get; set; }
+    }
+
+    private class PopularItemData
+    {
+        public string Name { get; set; } = "";
+        public int Quantity { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    private class DeliveryPerformanceData
+    {
+        public string DeliveryName { get; set; } = "";
+        public int TotalOrders { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public int Percentage { get; set; }
+    }
+}
+

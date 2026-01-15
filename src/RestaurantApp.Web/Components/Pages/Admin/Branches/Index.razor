@@ -1,0 +1,459 @@
+@page "/admin/branches"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.BranchApiService BranchApi
+@inject NavigationManager Navigation
+
+
+<PageTitle>Branches - Restaurant Admin</PageTitle>
+
+<div class="branches-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Branches</h1>
+            <p class="page-subtitle">Manage restaurant branches and locations</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddModal">
+            <i class="bi bi-plus-lg"></i> Add Branch
+        </button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading branches...</p>
+        </div>
+    }
+    else
+    {
+        @if (!Branches.Any())
+        {
+            <div class="text-center py-5">
+                <i class="bi bi-building" style="font-size: 4rem; color: #ccc;"></i>
+                <p class="mt-3 text-muted">No branches found. Create your first branch to get started.</p>
+            </div>
+        }
+        else
+        {
+            <div class="branches-grid">
+                @foreach (var branch in Branches)
+                {
+                    <div class="branch-card">
+                        <div class="branch-header">
+                            <div class="branch-icon">
+                                <i class="bi bi-building"></i>
+                            </div>
+                            <span class="status-badge @(branch.IsActive ? "active" : "inactive")">
+                                @(branch.IsActive ? "Open" : "Closed")
+                            </span>
+                        </div>
+                        <div class="branch-body">
+                            <h3>@branch.NameEn</h3>
+                            <p class="branch-name-ar">@branch.NameAr</p>
+                            <div class="branch-info">
+                                <div class="info-item">
+                                    <i class="bi bi-geo-alt"></i>
+                                    <span>@branch.AddressEn</span>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-telephone"></i>
+                                    <span>@(branch.Phone ?? "N/A")</span>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-clock"></i>
+                                    <span>@branch.OpeningHours</span>
+                                </div>
+                            </div>
+                            <div class="branch-info">
+                                <div class="info-item">
+                                    <i class="bi bi-truck"></i>
+                                    <span>Delivery Fee: @branch.DeliveryFee.ToString("C0")</span>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                    <span>Radius: @branch.DeliveryRadiusKm km</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="branch-footer">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => EditBranch(branch))">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ViewOrders(branch.Id))">
+                                <i class="bi bi-receipt"></i> Orders
+                            </button>
+                            <button class="btn btn-sm @(branch.IsActive ? "btn-outline-warning" : "btn-outline-success")" @onclick="@(() => ToggleStatus(branch))">
+                                <i class="bi @(branch.IsActive ? "bi-pause" : "bi-play")"></i>
+                                @(branch.IsActive ? "Close" : "Open")
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>@(IsEditing ? "Edit Branch" : "Add Branch")</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (English)</label>
+                        <input type="text" class="form-control" @bind="EditingBranch.NameEn" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (Arabic)</label>
+                        <input type="text" class="form-control" @bind="EditingBranch.NameAr" dir="rtl" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Address (English)</label>
+                        <textarea class="form-control" @bind="EditingBranch.AddressEn" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Address (Arabic)</label>
+                        <textarea class="form-control" @bind="EditingBranch.AddressAr" rows="2" dir="rtl"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" @bind="EditingBranch.Phone" placeholder="+971501234567" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Delivery Radius (Km)</label>
+                        <input type="number" step="0.1" class="form-control" @bind="EditingBranch.DeliveryRadiusKm" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Opening Time (HH:mm)</label>
+                        <input type="text" class="form-control" @bind="EditingBranch.OpeningTime" placeholder="09:00" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Closing Time (HH:mm)</label>
+                        <input type="text" class="form-control" @bind="EditingBranch.ClosingTime" placeholder="23:00" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-4">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Min Order Amount</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingBranch.MinOrderAmount" />
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Delivery Fee</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingBranch.DeliveryFee" />
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Free Delivery Threshold</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingBranch.FreeDeliveryThreshold" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Default Preparation Time (minutes)</label>
+                        <input type="number" class="form-control" @bind="EditingBranch.DefaultPreparationTimeMinutes" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Latitude</label>
+                        <input type="number" step="0.000001" class="form-control" @bind="EditingBranch.Latitude" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Longitude</label>
+                        <input type="number" step="0.000001" class="form-control" @bind="EditingBranch.Longitude" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="EditingBranch.IsActive" />
+                            <label class="form-check-label">Branch is Active</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="EditingBranch.AcceptingOrders" />
+                            <label class="form-check-label">Accepting Orders</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveBranch">
+                <i class="bi bi-check-lg"></i> Save
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditing { get; set; } = false;
+    private bool IsLoading { get; set; } = false;
+    private List<RestaurantApp.Web.Services.BranchDto> Branches { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBranches();
+    }
+
+    private async Task LoadBranches()
+    {
+        IsLoading = true;
+        try
+        {
+            Branches = await BranchApi.GetBranchesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading branches: {ex.Message}");
+            ShowMessage($"Error loading branches: {ex.Message}", "error");
+            Branches = new List<RestaurantApp.Web.Services.BranchDto>();
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditing = false;
+        EditingBranch = new RestaurantApp.Web.Services.BranchDto 
+        { 
+            IsActive = true,
+            AcceptingOrders = true,
+            DeliveryRadiusKm = 10,
+            MinOrderAmount = 0,
+            DeliveryFee = 0,
+            FreeDeliveryThreshold = 0,
+            DefaultPreparationTimeMinutes = 30,
+            OpeningTime = "09:00",
+            ClosingTime = "23:00"
+        };
+        ShowModal = true;
+        StateHasChanged();
+    }
+
+    private void EditBranch(RestaurantApp.Web.Services.BranchDto branch)
+    {
+        IsEditing = true;
+        EditingBranch = new RestaurantApp.Web.Services.BranchDto
+        {
+            Id = branch.Id,
+            RestaurantId = branch.RestaurantId,
+            NameEn = branch.NameEn,
+            NameAr = branch.NameAr,
+            AddressEn = branch.AddressEn,
+            AddressAr = branch.AddressAr,
+            Phone = branch.Phone,
+            OpeningTime = branch.OpeningTime,
+            ClosingTime = branch.ClosingTime,
+            Latitude = branch.Latitude,
+            Longitude = branch.Longitude,
+            DeliveryRadiusKm = branch.DeliveryRadiusKm,
+            MinOrderAmount = branch.MinOrderAmount,
+            DeliveryFee = branch.DeliveryFee,
+            FreeDeliveryThreshold = branch.FreeDeliveryThreshold,
+            DefaultPreparationTimeMinutes = branch.DefaultPreparationTimeMinutes,
+            IsActive = branch.IsActive,
+            AcceptingOrders = branch.AcceptingOrders
+        };
+        ShowModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+    }
+
+    private async Task SaveBranch()
+    {
+        IsLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            if (IsEditing)
+            {
+                // Update existing branch
+                var updateRequest = new RestaurantApp.Web.Services.UpdateBranchRequest
+                {
+                    NameAr = EditingBranch.NameAr,
+                    NameEn = EditingBranch.NameEn,
+                    AddressAr = EditingBranch.AddressAr,
+                    AddressEn = EditingBranch.AddressEn,
+                    Latitude = (decimal)EditingBranch.Latitude,
+                    Longitude = (decimal)EditingBranch.Longitude,
+                    Phone = EditingBranch.Phone,
+                    DeliveryRadiusKm = (decimal)EditingBranch.DeliveryRadiusKm,
+                    MinOrderAmount = (decimal)EditingBranch.MinOrderAmount,
+                    DeliveryFee = (decimal)EditingBranch.DeliveryFee,
+                    FreeDeliveryThreshold = (decimal)EditingBranch.FreeDeliveryThreshold,
+                    DefaultPreparationTimeMinutes = EditingBranch.DefaultPreparationTimeMinutes,
+                    OpeningTime = EditingBranch.OpeningTime,
+                    ClosingTime = EditingBranch.ClosingTime,
+                    IsActive = EditingBranch.IsActive,
+                    AcceptingOrders = EditingBranch.AcceptingOrders
+                };
+                
+                var success = await BranchApi.UpdateBranchAsync(EditingBranch.Id, updateRequest);
+                if (success)
+                {
+                    ShowMessage("Branch updated successfully!", "success");
+                    CloseModal();
+                    await LoadBranches();
+                }
+                else
+                {
+                    ShowMessage("Failed to update branch. Please try again.", "error");
+                }
+            }
+            else
+            {
+                // Create new branch
+                var createRequest = new RestaurantApp.Web.Services.CreateBranchRequest
+                {
+                    NameAr = EditingBranch.NameAr,
+                    NameEn = EditingBranch.NameEn,
+                    AddressAr = EditingBranch.AddressAr,
+                    AddressEn = EditingBranch.AddressEn,
+                    Latitude = (decimal)EditingBranch.Latitude,
+                    Longitude = (decimal)EditingBranch.Longitude,
+                    Phone = EditingBranch.Phone,
+                    DeliveryRadiusKm = (decimal)EditingBranch.DeliveryRadiusKm,
+                    MinOrderAmount = (decimal)EditingBranch.MinOrderAmount,
+                    DeliveryFee = (decimal)EditingBranch.DeliveryFee,
+                    FreeDeliveryThreshold = (decimal)EditingBranch.FreeDeliveryThreshold,
+                    DefaultPreparationTimeMinutes = EditingBranch.DefaultPreparationTimeMinutes,
+                    OpeningTime = EditingBranch.OpeningTime,
+                    ClosingTime = EditingBranch.ClosingTime,
+                    IsActive = EditingBranch.IsActive,
+                    AcceptingOrders = EditingBranch.AcceptingOrders
+                };
+                
+                var newBranch = await BranchApi.CreateBranchAsync(createRequest);
+                if (newBranch != null)
+                {
+                    ShowMessage("Branch created successfully!", "success");
+                    CloseModal();
+                    await LoadBranches();
+                }
+                else
+                {
+                    ShowMessage("Failed to create branch. Please try again.", "error");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving branch: {ex.Message}");
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleStatus(RestaurantApp.Web.Services.BranchDto branch)
+    {
+        try
+        {
+            var updateRequest = new RestaurantApp.Web.Services.UpdateBranchRequest
+            {
+                IsActive = !branch.IsActive
+            };
+            
+            var success = await BranchApi.UpdateBranchAsync(branch.Id, updateRequest);
+            if (success)
+            {
+                branch.IsActive = !branch.IsActive;
+                ShowMessage($"Branch {(branch.IsActive ? "opened" : "closed")} successfully!", "success");
+                await LoadBranches();
+            }
+            else
+            {
+                ShowMessage("Failed to update branch status.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling status: {ex.Message}");
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private void ViewOrders(int branchId)
+    {
+        Navigation.NavigateTo($"/admin/orders?branchId={branchId}");
+    }
+
+    private string? Message { get; set; }
+    private string MessageType { get; set; } = "";
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+
+    private RestaurantApp.Web.Services.BranchDto EditingBranch { get; set; } = new();
+}

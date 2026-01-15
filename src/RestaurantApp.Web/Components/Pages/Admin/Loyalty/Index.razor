@@ -1,0 +1,347 @@
+@page "/admin/loyalty"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.LoyaltyApiService LoyaltyApi
+
+<PageTitle>Loyalty Program - Restaurant Admin</PageTitle>
+
+<div class="loyalty-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Loyalty Program</h1>
+            <p class="page-subtitle">Manage customer rewards and points</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-primary" @onclick="ShowAwardModal">
+                <i class="bi bi-gift"></i> Award Points
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card bronze">
+            <div class="tier-icon">🥉</div>
+            <div class="stat-content">
+                <span class="stat-value">@Customers.Count(c => c.Tier == "Bronze")</span>
+                <span class="stat-label">Bronze Members</span>
+            </div>
+        </div>
+        <div class="stat-card silver">
+            <div class="tier-icon">🥈</div>
+            <div class="stat-content">
+                <span class="stat-value">@Customers.Count(c => c.Tier == "Silver")</span>
+                <span class="stat-label">Silver Members</span>
+            </div>
+        </div>
+        <div class="stat-card gold">
+            <div class="tier-icon">🥇</div>
+            <div class="stat-content">
+                <span class="stat-value">@Customers.Count(c => c.Tier == "Gold")</span>
+                <span class="stat-label">Gold Members</span>
+            </div>
+        </div>
+        <div class="stat-card platinum">
+            <div class="tier-icon">💎</div>
+            <div class="stat-content">
+                <span class="stat-value">@Customers.Count(c => c.Tier == "Platinum")</span>
+                <span class="stat-label">Platinum Members</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="summary-cards mb-4">
+        <div class="summary-card">
+            <i class="bi bi-people text-primary"></i>
+            <div>
+                <span class="summary-value">@Customers.Count</span>
+                <span class="summary-label">Total Members</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <i class="bi bi-coin text-warning"></i>
+            <div>
+                <span class="summary-value">@Customers.Sum(c => c.Points).ToString("N0")</span>
+                <span class="summary-label">Total Points</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <i class="bi bi-graph-up-arrow text-success"></i>
+            <div>
+                <span class="summary-value">@Customers.Sum(c => c.TotalEarned).ToString("N0")</span>
+                <span class="summary-label">Points Earned</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <i class="bi bi-gift text-info"></i>
+            <div>
+                <span class="summary-value">@Customers.Sum(c => c.TotalRedeemed).ToString("N0")</span>
+                <span class="summary-label">Points Redeemed</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customers Table -->
+    <div class="card">
+        <div class="table-header">
+            <h5>Loyalty Members</h5>
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" placeholder="Search customers..." @bind="SearchQuery" @bind:event="oninput" />
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Tier</th>
+                        <th>Points Balance</th>
+                        <th>Total Earned</th>
+                        <th>Total Redeemed</th>
+                        <th>Bonus</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!FilteredCustomers.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <i class="bi bi-people text-muted" style="font-size: 2rem;"></i>
+                                <p class="text-muted mb-0 mt-2">No loyalty members found</p>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var customer in FilteredCustomers)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="customer-info">
+                                        <span class="customer-name">@customer.Name</span>
+                                        <span class="customer-email">@customer.Email</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="tier-badge @customer.Tier.ToLower()">
+                                        @GetTierIcon(customer.Tier) @customer.Tier
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong class="points-value">@customer.Points.ToString("N0")</strong>
+                                </td>
+                                <td class="text-success">+@customer.TotalEarned.ToString("N0")</td>
+                                <td class="text-danger">-@customer.TotalRedeemed.ToString("N0")</td>
+                                <td>
+                                    <span class="bonus-badge">@customer.BonusMultiplier.ToString("0.0")x</span>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-primary" @onclick="@(() => AwardPointsToCustomer(customer))" title="Award Points">
+                                            <i class="bi bi-plus-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ViewHistory(customer))" title="View History">
+                                            <i class="bi bi-clock-history"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>Award Bonus Points</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group mb-3">
+                <label class="form-label">Customer</label>
+                <select class="form-select" @bind="SelectedCustomerId">
+                    <option value="">Select customer...</option>
+                    @foreach (var c in Customers)
+                    {
+                        <option value="@c.CustomerId">@c.Name (@c.Email)</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Points to Award</label>
+                <input type="number" class="form-control" @bind="AwardPoints" placeholder="100" min="1" />
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Reason</label>
+                <input type="text" class="form-control" @bind="AwardReason" placeholder="e.g., Birthday bonus, Promotional offer" />
+            </div>
+            <div class="preview-card">
+                <div class="preview-label">Customer will receive:</div>
+                <div class="preview-value">@AwardPoints points</div>
+                <div class="preview-discount">= @((AwardPoints * 0.01m).ToString("C")) discount value</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SubmitAwardPoints" disabled="@IsSaving">
+                @if (IsSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                <i class="bi bi-gift"></i> Award Points
+            </button>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="toast-notification @MessageType">
+        <i class="bi @(MessageType == "success" ? "bi-check-circle" : "bi-exclamation-circle")"></i>
+        @Message
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool ShowModal { get; set; } = false;
+    private bool IsSaving { get; set; } = false;
+    private string SearchQuery { get; set; } = "";
+    private string Message { get; set; } = "";
+    private string MessageType { get; set; } = "success";
+    private string SelectedCustomerId { get; set; } = "";
+    private int AwardPoints { get; set; } = 100;
+    private string AwardReason { get; set; } = "";
+    private List<RestaurantApp.Web.Services.LoyaltyCustomerDto> Customers { get; set; } = new();
+    private List<RestaurantApp.Web.Services.LoyaltyTierDto> Tiers { get; set; } = new();
+
+    private IEnumerable<RestaurantApp.Web.Services.LoyaltyCustomerDto> FilteredCustomers => Customers
+        .Where(c => string.IsNullOrEmpty(SearchQuery) ||
+                    c.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    c.Email.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            // Load tiers from API
+            Tiers = await LoyaltyApi.GetTiersAsync();
+            
+            // Load customers from API
+            Customers = await LoyaltyApi.GetAllCustomersAsync(1, 100, SearchQuery);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading loyalty data: {ex.Message}");
+            Customers = new List<RestaurantApp.Web.Services.LoyaltyCustomerDto>();
+            Tiers = new List<RestaurantApp.Web.Services.LoyaltyTierDto>();
+            ShowMessageNotification($"Error loading loyalty data: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+    private void ShowAwardModal()
+    {
+        SelectedCustomerId = "";
+        AwardPoints = 100;
+        AwardReason = "";
+        ShowModal = true;
+    }
+
+    private void AwardPointsToCustomer(RestaurantApp.Web.Services.LoyaltyCustomerDto customer)
+    {
+        SelectedCustomerId = customer.Id;
+        AwardPoints = 100;
+        AwardReason = "";
+        ShowModal = true;
+    }
+
+    private void ViewHistory(RestaurantApp.Web.Services.LoyaltyCustomerDto customer)
+    {
+        ShowMessageNotification($"Showing history for {customer.Name}", "success");
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+    }
+
+    private async Task SubmitAwardPoints()
+    {
+        if (string.IsNullOrEmpty(SelectedCustomerId))
+        {
+            ShowMessageNotification("Please select a customer", "error");
+            return;
+        }
+
+        if (AwardPoints <= 0)
+        {
+            ShowMessageNotification("Points must be greater than 0", "error");
+            return;
+        }
+
+        IsSaving = true;
+        try
+        {
+            // Try to call API
+            var success = await LoyaltyApi.AwardPointsAsync(SelectedCustomerId, AwardPoints, AwardReason);
+            
+            // Update local data
+            var customer = Customers.FirstOrDefault(c => c.CustomerId == SelectedCustomerId);
+            if (customer != null)
+            {
+                customer.Points += AwardPoints;
+                customer.TotalEarned += AwardPoints;
+            }
+
+            ShowMessageNotification($"Awarded {AwardPoints} points to {customer?.Name}!", "success");
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            ShowMessageNotification($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private string GetTierIcon(string tier) => tier switch
+    {
+        "Platinum" => "💎",
+        "Gold" => "🥇",
+        "Silver" => "🥈",
+        _ => "🥉"
+    };
+
+    private async void ShowMessageNotification(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+}

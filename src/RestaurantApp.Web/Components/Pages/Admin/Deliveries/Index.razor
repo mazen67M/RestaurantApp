@@ -1,0 +1,289 @@
+@page "/admin/deliveries"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.DeliveryApiService DeliveryApi
+@inject NavigationManager Navigation
+
+<PageTitle>Delivery Management - Restaurant Admin</PageTitle>
+
+<div class="deliveries-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Delivery Management</h1>
+            <p class="page-subtitle">Manage delivery drivers and assignments</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-outline-secondary" @onclick="LoadDeliveries">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <button class="btn btn-primary" @onclick="ShowAddModal">
+                <i class="bi bi-plus-lg"></i> Add Delivery Driver
+            </button>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading deliveries...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Deliveries Table -->
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name (English)</th>
+                            <th>Name (Arabic)</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Availability</th>
+                            <th>Total Orders</th>
+                            <th>Total Revenue</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Deliveries.Any())
+                        {
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                    <p class="mt-2">No delivery drivers found</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var delivery in Deliveries)
+                            {
+                                <tr>
+                                    <td>@delivery.Id</td>
+                                    <td>@delivery.NameEn</td>
+                                    <td>@delivery.NameAr</td>
+                                    <td>@delivery.Phone</td>
+                                    <td>@(delivery.Email ?? "-")</td>
+                                    <td>
+                                        <span class="badge @(delivery.IsActive ? "bg-success" : "bg-secondary")">
+                                            @(delivery.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm @(delivery.IsAvailable ? "btn-success" : "btn-warning")" 
+                                                @onclick="() => ToggleAvailability(delivery.Id, !delivery.IsAvailable)">
+                                            <i class="bi @(delivery.IsAvailable ? "bi-check-circle" : "bi-pause-circle")"></i>
+                                            @(delivery.IsAvailable ? "Available" : "Unavailable")
+                                        </button>
+                                    </td>
+                                    <td>@delivery.TotalOrders</td>
+                                    <td>@delivery.TotalRevenue.ToString("N2") ج.م</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowEditModal(delivery)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-info" @onclick="() => ViewStats(delivery.Id)">
+                                                <i class="bi bi-graph-up"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteDelivery(delivery.Id)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Add/Edit Modal -->
+@if (ShowModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(IsEditMode ? "Edit Delivery Driver" : "Add Delivery Driver")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name (English)</label>
+                        <input type="text" class="form-control" @bind="FormData.NameEn" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name (Arabic)</label>
+                        <input type="text" class="form-control" @bind="FormData.NameAr" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" @bind="FormData.Phone" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email (Optional)</label>
+                        <input type="email" class="form-control" @bind="FormData.Email" />
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" @bind="FormData.IsActive" id="isActive" />
+                        <label class="form-check-label" for="isActive">Active</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" @bind="FormData.IsAvailable" id="isAvailable" />
+                        <label class="form-check-label" for="isAvailable">Available</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveDelivery">
+                        @(IsEditMode ? "Update" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditMode { get; set; } = false;
+    private int? EditingId { get; set; }
+
+    private List<RestaurantApp.Web.Services.DeliveryDto> Deliveries { get; set; } = new();
+    private DeliveryFormData FormData { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDeliveries();
+    }
+
+    private async Task LoadDeliveries()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            Deliveries = await DeliveryApi.GetAllDeliveriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading deliveries: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditMode = false;
+        EditingId = null;
+        FormData = new DeliveryFormData { IsActive = true, IsAvailable = true };
+        ShowModal = true;
+    }
+
+    private void ShowEditModal(RestaurantApp.Web.Services.DeliveryDto delivery)
+    {
+        IsEditMode = true;
+        EditingId = delivery.Id;
+        FormData = new DeliveryFormData
+        {
+            NameEn = delivery.NameEn,
+            NameAr = delivery.NameAr,
+            Phone = delivery.Phone,
+            Email = delivery.Email,
+            IsActive = delivery.IsActive,
+            IsAvailable = delivery.IsAvailable
+        };
+        ShowModal = true;
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+        FormData = new DeliveryFormData();
+    }
+
+    private async Task SaveDelivery()
+    {
+        try
+        {
+            if (IsEditMode && EditingId.HasValue)
+            {
+                await DeliveryApi.UpdateDeliveryAsync(EditingId.Value, FormData);
+            }
+            else
+            {
+                await DeliveryApi.CreateDeliveryAsync(FormData);
+            }
+
+            CloseModal();
+            await LoadDeliveries();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving delivery: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleAvailability(int id, bool isAvailable)
+    {
+        try
+        {
+            await DeliveryApi.SetAvailabilityAsync(id, isAvailable);
+            await LoadDeliveries();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling availability: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteDelivery(int id)
+    {
+        // Simple confirmation - in production use a proper modal
+        try
+        {
+            await DeliveryApi.DeleteDeliveryAsync(id);
+            await LoadDeliveries();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting delivery: {ex.Message}");
+        }
+    }
+
+    private void ViewStats(int id)
+    {
+        Navigation.NavigateTo($"/admin/deliveries/{id}/stats");
+    }
+
+    private class DeliveryFormData
+    {
+        public string NameEn { get; set; } = "";
+        public string NameAr { get; set; } = "";
+        public string Phone { get; set; } = "";
+        public string? Email { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool IsAvailable { get; set; } = true;
+    }
+}
+

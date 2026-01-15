@@ -1,0 +1,290 @@
+@page "/admin"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.OrderApiService OrderApi
+
+<PageTitle>Dashboard - Restaurant Admin</PageTitle>
+
+<div class="dashboard">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Welcome back! Here's what's happening today.</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-outline-secondary" @onclick="LoadDashboardData">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <a href="/admin/orders" class="btn btn-primary">
+                <i class="bi bi-receipt"></i> View Orders
+            </a>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading dashboard data...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon orders">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value">@TotalOrders</span>
+                    <span class="stat-label">Total Orders</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon revenue">
+                    <i class="bi bi-currency-dollar"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value">@TotalRevenue.ToString("N2") ج.م</span>
+                    <span class="stat-label">Total Revenue</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon pending">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value">@PendingOrders</span>
+                    <span class="stat-label">Pending Orders</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon customers">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value">@DeliveredOrders</span>
+                    <span class="stat-label">Delivered Today</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="content-grid">
+            <!-- Revenue Trend Chart -->
+            <div class="card chart-card revenue-trend">
+                <div class="card-header">
+                    <h3>Revenue Trend (Last 7 Days)</h3>
+                    <span class="trend-value">@TotalRevenue.ToString("N0") ج.م Total</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Order Status Donut Chart -->
+            <div class="card chart-card status-distribution">
+                <div class="card-header">
+                    <h3>Order Status</h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Orders -->
+            <div class="card orders-card">
+                <div class="card-header">
+                    <h3>Recent Orders</h3>
+                    <a href="/admin/orders" class="view-all">View All</a>
+                </div>
+                <div class="card-body">
+                    @if (!RecentOrders.Any())
+                    {
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2">No orders yet</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="orders-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Customer</th>
+                                        <th>Status</th>
+                                        <th>Total</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var order in RecentOrders)
+                                    {
+                                        <tr>
+                                            <td><span class="order-id">#@order.OrderNumber</span></td>
+                                            <td>@order.CustomerName</td>
+                                            <td><span class="status-badge @order.Status.ToLower()">@order.Status</span></td>
+                                            <td>@order.Total.ToString("N2") ج.م</td>
+                                            <td>@GetTimeAgo(order.CreatedAt)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card quick-actions-card">
+                <div class="card-header">
+                    <h3>Quick Actions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="quick-actions-grid">
+                        <a href="/admin/menu" class="quick-action">
+                            <div class="action-icon menu">
+                                <i class="bi bi-menu-button-wide"></i>
+                            </div>
+                            <span>Manage Menu</span>
+                        </a>
+                        <a href="/admin/offers" class="quick-action">
+                            <div class="action-icon offers">
+                                <i class="bi bi-tags"></i>
+                            </div>
+                            <span>Create Offer</span>
+                        </a>
+                        <a href="/admin/branches" class="quick-action">
+                            <div class="action-icon branches">
+                                <i class="bi bi-building"></i>
+                            </div>
+                            <span>Branches</span>
+                        </a>
+                        <a href="/admin/reports" class="quick-action">
+                            <div class="action-icon reports">
+                                <i class="bi bi-graph-up-arrow"></i>
+                            </div>
+                            <span>View Reports</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@inject IJSRuntime JSRuntime
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private int TotalOrders { get; set; } = 0;
+    private decimal TotalRevenue { get; set; } = 0;
+    private int PendingOrders { get; set; } = 0;
+    private int DeliveredOrders { get; set; } = 0;
+
+    private List<RestaurantApp.Web.Services.OrderDto> AllOrders = new();
+    private List<RestaurantApp.Web.Services.OrderDto> RecentOrders = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!IsLoading && AllOrders.Any())
+        {
+            await RenderCharts();
+        }
+    }
+
+    private async Task LoadDashboardData()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load orders from API
+            AllOrders = await OrderApi.GetOrdersAsync();
+            
+            // Calculate stats from real data
+            TotalOrders = AllOrders.Count;
+            TotalRevenue = AllOrders.Sum(o => o.Total);
+            PendingOrders = AllOrders.Count(o => o.Status == "Pending");
+            DeliveredOrders = AllOrders.Count(o => o.Status == "Delivered" && o.CreatedAt.Date == DateTime.Today);
+
+            // Get recent 5 orders
+            RecentOrders = AllOrders
+                .OrderByDescending(o => o.CreatedAt)
+                .Take(5)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderCharts()
+    {
+        try
+        {
+            // 1. Status Chart Data
+            var statuses = new[] { "Pending", "Confirmed", "Preparing", "Delivered", "Cancelled" };
+            var statusData = new
+            {
+                labels = statuses,
+                values = statuses.Select(s => AllOrders.Count(o => o.Status == s)).ToArray()
+            };
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderStatusChart", "statusChart", statusData);
+
+            // 2. Revenue Chart Data (Last 7 Days)
+            var last7Days = Enumerable.Range(0, 7)
+                .Select(i => DateTime.Today.AddDays(-i))
+                .Reverse()
+                .ToList();
+
+            var revenueData = new
+            {
+                labels = last7Days.Select(d => d.ToString("MMM dd")).ToArray(),
+                values = last7Days.Select(d => AllOrders
+                    .Where(o => o.CreatedAt.Date == d.Date)
+                    .Sum(o => o.Total)).ToArray()
+            };
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderRevenueChart", "revenueChart", revenueData);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rendering charts: {ex.Message}");
+        }
+    }
+
+    private string GetTimeAgo(DateTime time)
+    {
+        var diff = DateTime.Now - time;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours} hour ago";
+        return $"{(int)diff.TotalDays} days ago";
+    }
+}
+

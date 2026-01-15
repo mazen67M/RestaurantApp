@@ -1,0 +1,253 @@
+@page "/admin/categories"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.CategoryApiService CategoryApi
+@inject IJSRuntime JS
+
+<PageTitle>Categories - Restaurant Admin</PageTitle>
+
+<div class="categories-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Categories</h1>
+            <p class="page-subtitle">Manage menu categories</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddModal">
+            <i class="bi bi-plus-lg"></i> Add Category
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>Name (EN)</th>
+                        <th>Name (AR)</th>
+                        <th>Items Count</th>
+                        <th>Status</th>
+                        <th>Sort Order</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (IsLoading)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="spinner-border text-primary"></div>
+                            </td>
+                        </tr>
+                    }
+                    else if (!Categories.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <i class="bi bi-grid text-muted" style="font-size: 2rem;"></i>
+                                <p class="text-muted mb-0 mt-2">No categories found</p>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var category in Categories)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="category-image">
+                                        @if (!string.IsNullOrEmpty(category.ImageUrl))
+                                        {
+                                            <img src="@category.ImageUrl" alt="@category.NameEn" />
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-image"></i>
+                                        }
+                                    </div>
+                                </td>
+                                <td><strong>@category.NameEn</strong></td>
+                                <td>@category.NameAr</td>
+                                <td>@category.ItemsCount items</td>
+                                <td>
+                                    <span class="status-badge @(category.IsActive ? "active" : "inactive")">
+                                        @(category.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>@category.SortOrder</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="@(() => EditCategory(category))" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteCategory(category.Id))" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>@(IsEditing ? "Edit Category" : "Add Category")</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group mb-3">
+                <label class="form-label">Name (English)</label>
+                <input type="text" class="form-control" @bind="EditingCategory.NameEn" placeholder="Enter English name" />
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Name (Arabic)</label>
+                <input type="text" class="form-control" @bind="EditingCategory.NameAr" placeholder="Enter Arabic name" dir="rtl" />
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Description (English)</label>
+                <textarea class="form-control" @bind="EditingCategory.DescriptionEn" rows="2"></textarea>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Description (Arabic)</label>
+                <textarea class="form-control" @bind="EditingCategory.DescriptionAr" rows="2" dir="rtl"></textarea>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Image URL</label>
+                <input type="text" class="form-control" @bind="EditingCategory.ImageUrl" placeholder="https://..." />
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Sort Order</label>
+                        <input type="number" class="form-control" @bind="EditingCategory.SortOrder" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Status</label>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" @bind="EditingCategory.IsActive" />
+                            <label class="form-check-label">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveCategory">
+                <i class="bi bi-check-lg"></i> Save
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditing { get; set; } = false;
+    private List<RestaurantApp.Web.Services.CategoryDto> Categories { get; set; } = new();
+    private RestaurantApp.Web.Services.CategoryDto EditingCategory { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+    }
+
+    private async Task LoadCategories()
+    {
+        IsLoading = true;
+        try
+        {
+            Categories = await CategoryApi.GetCategoriesAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading categories: {ex.Message}");
+            Categories = new List<RestaurantApp.Web.Services.CategoryDto>();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditing = false;
+        EditingCategory = new RestaurantApp.Web.Services.CategoryDto { IsActive = true, SortOrder = Categories.Count + 1 };
+        ShowModal = true;
+    }
+
+    private void EditCategory(RestaurantApp.Web.Services.CategoryDto category)
+    {
+        IsEditing = true;
+        EditingCategory = new RestaurantApp.Web.Services.CategoryDto
+        {
+            Id = category.Id,
+            NameEn = category.NameEn,
+            NameAr = category.NameAr,
+            DescriptionEn = category.DescriptionEn,
+            DescriptionAr = category.DescriptionAr,
+            ImageUrl = category.ImageUrl,
+            IsActive = category.IsActive,
+            SortOrder = category.SortOrder
+        };
+        ShowModal = true;
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+        EditingCategory = new();
+    }
+
+    private async Task SaveCategory()
+    {
+        bool success;
+        if (IsEditing)
+        {
+            success = await CategoryApi.UpdateCategoryAsync(EditingCategory.Id, EditingCategory);
+        }
+        else
+        {
+            success = await CategoryApi.CreateCategoryAsync(EditingCategory);
+        }
+        
+        if (success)
+        {
+            await LoadCategories(); // Refresh the list
+        }
+        
+        CloseModal();
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        var category = Categories.FirstOrDefault(c => c.Id == id);
+        if (category != null)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete category '{category.NameEn}'? This will affect all items in this category.");
+            if (!confirmed) return;
+        }
+
+        var success = await CategoryApi.DeleteCategoryAsync(id);
+        if (success)
+        {
+            await LoadCategories();
+        }
+    }
+}

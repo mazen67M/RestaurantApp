@@ -1,0 +1,46 @@
+@inherits LayoutComponentBase
+@inject RestaurantApp.Web.Services.NotificationService NotificationService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div id="admin-root" class="admin-container">
+    <AdminSidebar />
+
+    <div class="main-wrapper">
+        <AdminTopNavbar />
+
+        <main class="main-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+    @foreach (var toast in NotificationService.ActiveToasts)
+    {
+        <div class="toast show animate-slide-in">
+            <div class="toast-header bg-primary text-white">
+                <i class="bi bi-bell-fill me-2"></i>
+                <strong class="me-auto">New Notification</strong>
+                <button type="button" class="btn-close btn-close-white" @onclick="@(() => NotificationService.RemoveToast(toast))"></button>
+            </div>
+            <div class="toast-body">
+                @toast
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        NotificationService.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        NotificationService.OnChange -= StateHasChanged;
+    }
+}
+

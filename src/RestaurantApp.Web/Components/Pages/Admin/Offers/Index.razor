@@ -1,0 +1,432 @@
+@page "/admin/offers"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.OfferApiService OfferApi
+
+<PageTitle>Offers & Coupons - Restaurant Admin</PageTitle>
+
+<div class="offers-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Offers & Coupons</h1>
+            <p class="page-subtitle">Create promotions - instantly available in mobile app</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddModal">
+            <i class="bi bi-plus-lg"></i> Create Offer
+        </button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">Loading offers...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Stats Cards -->
+        <div class="stats-grid mb-4">
+            <div class="stat-card">
+                <i class="bi bi-ticket-perforated text-primary"></i>
+                <div class="stat-content">
+                    <span class="stat-value">@Offers.Count</span>
+                    <span class="stat-label">Total Offers</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="bi bi-check-circle text-success"></i>
+                <div class="stat-content">
+                    <span class="stat-value">@Offers.Count(o => o.IsActive)</span>
+                    <span class="stat-label">Active</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="bi bi-graph-up text-info"></i>
+                <div class="stat-content">
+                    <span class="stat-value">@Offers.Sum(o => o.UsageCount)</span>
+                    <span class="stat-label">Total Uses</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="bi bi-clock-history text-warning"></i>
+                <div class="stat-content">
+                    <span class="stat-value">@Offers.Count(o => o.EndDate < DateTime.Now)</span>
+                    <span class="stat-label">Expired</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Offers Table -->
+        <div class="card">
+            <div class="table-header">
+                <h5>All Offers</h5>
+                <button class="btn btn-outline-primary btn-sm" @onclick="RefreshData">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Value</th>
+                            <th>Validity</th>
+                            <th>Usage</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Offers.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <i class="bi bi-ticket-perforated text-muted" style="font-size: 2rem;"></i>
+                                    <p class="text-muted mb-0 mt-2">No offers created yet</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var offer in Offers)
+                            {
+                                <tr class="@(offer.IsActive ? "" : "inactive")">
+                                    <td>
+                                        <span class="coupon-code">@offer.Code</span>
+                                    </td>
+                                    <td>
+                                        <strong>@offer.NameEn</strong>
+                                        <br />
+                                        <small class="text-muted">@offer.NameAr</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge @GetTypeBadge(offer.OfferType)">
+                                            @offer.OfferType
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (offer.OfferType == "Percentage")
+                                        {
+                                            <strong>@offer.Value%</strong>
+                                        }
+                                        else
+                                        {
+                                            <strong>@offer.Value.ToString("C")</strong>
+                                        }
+                                    </td>
+                                    <td>
+                                        @offer.StartDate.ToString("MMM dd") - @offer.EndDate.ToString("MMM dd, yyyy")
+                                        @if (offer.EndDate < DateTime.Now)
+                                        {
+                                            <span class="badge bg-danger ms-1">Expired</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="usage-badge">
+                                            @offer.UsageCount / @(offer.UsageLimit?.ToString() ?? "∞")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   checked="@offer.IsActive" 
+                                                   @onchange="@(() => ToggleOffer(offer))" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => EditOffer(offer))" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteOffer(offer.Id))" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>@(IsEditing ? "Edit Offer" : "Create New Offer")</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group mb-3">
+                <label class="form-label">Coupon Code *</label>
+                <input type="text" class="form-control" @bind="EditingOffer.Code" 
+                       placeholder="e.g., WELCOME20" style="text-transform: uppercase;" />
+                <small class="text-muted">Customers will enter this code at checkout</small>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (English) *</label>
+                        <input type="text" class="form-control" @bind="EditingOffer.NameEn" 
+                               placeholder="e.g., Welcome Discount" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (Arabic)</label>
+                        <input type="text" class="form-control" @bind="EditingOffer.NameAr" 
+                               dir="rtl" placeholder="خصم الترحيب" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Discount Type *</label>
+                        <select class="form-select" @bind="EditingOffer.OfferType">
+                            <option value="Percentage">Percentage (%)</option>
+                            <option value="FixedAmount">Fixed Amount ($)</option>
+                            <option value="FreeDelivery">Free Delivery</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Value *</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingOffer.Value" 
+                               placeholder="e.g., 20 for 20%" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Start Date *</label>
+                        <input type="date" class="form-control" @bind="EditingOffer.StartDate" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">End Date *</label>
+                        <input type="date" class="form-control" @bind="EditingOffer.EndDate" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Usage Limit</label>
+                        <input type="number" class="form-control" @bind="EditingOffer.UsageLimit" 
+                               placeholder="Leave empty for unlimited" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Min. Order Amount</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingOffer.MinOrderAmount" 
+                               placeholder="0 for no minimum" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" @bind="EditingOffer.IsActive" />
+                    <label class="form-check-label">Offer is active (customers can use it)</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveOffer" disabled="@IsSaving">
+                @if (IsSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                <i class="bi bi-check-lg"></i> Save Offer
+            </button>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="toast-notification @MessageType">
+        <i class="bi @(MessageType == "success" ? "bi-check-circle" : "bi-exclamation-circle")"></i>
+        @Message
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool IsSaving { get; set; } = false;
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditing { get; set; } = false;
+    private string Message { get; set; } = "";
+    private string MessageType { get; set; } = "success";
+    private List<RestaurantApp.Web.Services.OfferDto> Offers { get; set; } = new();
+    private RestaurantApp.Web.Services.OfferDto EditingOffer { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            Offers = await OfferApi.GetOffersAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+        ShowMessage("Offers refreshed!", "success");
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditing = false;
+        EditingOffer = new RestaurantApp.Web.Services.OfferDto
+        {
+            IsActive = true,
+            StartDate = DateTime.Today,
+            EndDate = DateTime.Today.AddMonths(1),
+            OfferType = "Percentage"
+        };
+        ShowModal = true;
+    }
+
+    private void EditOffer(RestaurantApp.Web.Services.OfferDto offer)
+    {
+        IsEditing = true;
+        EditingOffer = new RestaurantApp.Web.Services.OfferDto
+        {
+            Id = offer.Id,
+            Code = offer.Code,
+            NameEn = offer.NameEn,
+            NameAr = offer.NameAr,
+            OfferType = offer.OfferType,
+            Value = offer.Value,
+            StartDate = offer.StartDate,
+            EndDate = offer.EndDate,
+            UsageLimit = offer.UsageLimit,
+            MinOrderAmount = offer.MinOrderAmount,
+            IsActive = offer.IsActive
+        };
+        ShowModal = true;
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+    }
+
+    private async Task SaveOffer()
+    {
+        IsSaving = true;
+        try
+        {
+            bool success;
+            if (IsEditing)
+            {
+                success = await OfferApi.UpdateOfferAsync(EditingOffer.Id, EditingOffer);
+            }
+            else
+            {
+                success = await OfferApi.CreateOfferAsync(EditingOffer);
+            }
+
+            if (success)
+            {
+                await LoadData();
+                CloseModal();
+                ShowMessage($"Offer '{EditingOffer.Code}' saved! Customers can now use it.", "success");
+            }
+            else
+            {
+                ShowMessage("Failed to save offer. Check all required fields.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ToggleOffer(RestaurantApp.Web.Services.OfferDto offer)
+    {
+        try
+        {
+            var success = await OfferApi.ToggleOfferAsync(offer.Id);
+            if (success)
+            {
+                offer.IsActive = !offer.IsActive;
+                ShowMessage($"Offer '{offer.Code}' is now {(offer.IsActive ? "active" : "inactive")}!", "success");
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private async Task DeleteOffer(int id)
+    {
+        try
+        {
+            var success = await OfferApi.DeleteOfferAsync(id);
+            if (success)
+            {
+                await LoadData();
+                ShowMessage("Offer deleted successfully!", "success");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private string GetTypeBadge(string type) => type switch
+    {
+        "Percentage" => "bg-success",
+        "FixedAmount" => "bg-primary",
+        "FreeDelivery" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,321 @@
+@page "/admin/reviews"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.ReviewApiService ReviewApi
+
+<PageTitle>Review Moderation - Restaurant Admin</PageTitle>
+
+<div class="reviews-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Review Moderation</h1>
+            <p class="page-subtitle">Manage customer reviews and ratings</p>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="RefreshData">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <i class="bi bi-star-fill text-warning"></i>
+            <div class="stat-content">
+                <span class="stat-value">@Reviews.Count</span>
+                <span class="stat-label">Total Reviews</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <i class="bi bi-clock-history text-primary"></i>
+            <div class="stat-content">
+                <span class="stat-value">@PendingReviews.Count()</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <i class="bi bi-check-circle text-success"></i>
+            <div class="stat-content">
+                <span class="stat-value">@Reviews.Count(r => r.IsApproved)</span>
+                <span class="stat-label">Approved</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <i class="bi bi-graph-up text-info"></i>
+            <div class="stat-content">
+                <span class="stat-value">@(Reviews.Any() ? Reviews.Average(r => r.Rating).ToString("F1") : "0.0")</span>
+                <span class="stat-label">Avg Rating</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs mb-4">
+        <button class="tab @(ActiveTab == "pending" ? "active" : "")" @onclick="@(() => SetTab("pending"))">
+            <i class="bi bi-clock"></i> Pending (@PendingReviews.Count())
+        </button>
+        <button class="tab @(ActiveTab == "all" ? "active" : "")" @onclick="@(() => SetTab("all"))">
+            <i class="bi bi-list"></i> All Reviews
+        </button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">Loading reviews...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Item</th>
+                            <th>Rating</th>
+                            <th>Comment</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!DisplayedReviews.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="bi bi-star text-muted" style="font-size: 2rem;"></i>
+                                    <p class="text-muted mb-0 mt-2">No reviews to display</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var review in DisplayedReviews)
+                            {
+                                <tr class="@(!review.IsApproved ? "pending-row" : "")">
+                                    <td>
+                                        <div class="customer-info">
+                                            <span class="customer-name">@review.CustomerName</span>
+                                            <span class="customer-email text-muted">@review.CustomerEmail</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <strong>@review.MenuItemNameEn</strong>
+                                        <br />
+                                        <small class="text-muted">@review.MenuItemNameAr</small>
+                                    </td>
+                                    <td>
+                                        <div class="rating-stars">
+                                            @for (int i = 0; i < 5; i++)
+                                            {
+                                                <i class="bi @(i < review.Rating ? "bi-star-fill text-warning" : "bi-star text-muted")"></i>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="comment-cell">
+                                        @if (!string.IsNullOrEmpty(review.Comment))
+                                        {
+                                            <span class="comment-text" title="@review.Comment">
+                                                @(review.Comment.Length > 50 ? review.Comment.Substring(0, 50) + "..." : review.Comment)
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No comment</span>
+                                        }
+                                    </td>
+                                    <td>@review.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        @if (review.IsApproved)
+                                        {
+                                            <span class="badge bg-success">Approved</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning">Pending</span>
+                                        }
+                                        @if (!review.IsVisible)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Hidden</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            @if (!review.IsApproved)
+                                            {
+                                                <button class="btn btn-sm btn-success" @onclick="@(() => ApproveReview(review.Id))" title="Approve" disabled="@IsProcessing">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" @onclick="@(() => RejectReview(review.Id))" title="Reject" disabled="@IsProcessing">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ToggleVisibility(review.Id))" title="Toggle Visibility" disabled="@IsProcessing">
+                                                <i class="bi @(review.IsVisible ? "bi-eye-slash" : "bi-eye")"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="toast-notification @MessageType">
+        <i class="bi @(MessageType == "success" ? "bi-check-circle" : "bi-exclamation-circle")"></i>
+        @Message
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool IsProcessing { get; set; } = false;
+    private string ActiveTab { get; set; } = "pending";
+    private string Message { get; set; } = "";
+    private string MessageType { get; set; } = "success";
+    private List<RestaurantApp.Web.Services.ReviewModerationDto> Reviews { get; set; } = new();
+
+    private IEnumerable<RestaurantApp.Web.Services.ReviewModerationDto> PendingReviews => Reviews.Where(r => !r.IsApproved);
+    private IEnumerable<RestaurantApp.Web.Services.ReviewModerationDto> DisplayedReviews => ActiveTab == "pending" ? PendingReviews : Reviews;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            // Load reviews from API
+            Reviews = await ReviewApi.GetPendingReviewsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading reviews: {ex.Message}");
+            Reviews = new List<RestaurantApp.Web.Services.ReviewModerationDto>();
+            ShowMessage($"Error loading reviews: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+        ShowMessage("Reviews refreshed!", "success");
+    }
+
+    private void SetTab(string tab)
+    {
+        ActiveTab = tab;
+    }
+
+    private async Task ApproveReview(int id)
+    {
+        IsProcessing = true;
+        try
+        {
+            var success = await ReviewApi.ApproveReviewAsync(id);
+            if (success)
+            {
+                var review = Reviews.FirstOrDefault(r => r.Id == id);
+                if (review != null)
+                {
+                    review.IsApproved = true;
+                }
+                ShowMessage("Review approved! Now visible to customers.", "success");
+            }
+            else
+            {
+                // For demo mode, update locally
+                var review = Reviews.FirstOrDefault(r => r.Id == id);
+                if (review != null)
+                {
+                    review.IsApproved = true;
+                }
+                ShowMessage("Review approved!", "success");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private async Task RejectReview(int id)
+    {
+        IsProcessing = true;
+        try
+        {
+            var success = await ReviewApi.RejectReviewAsync(id);
+            var review = Reviews.FirstOrDefault(r => r.Id == id);
+            if (review != null)
+            {
+                review.IsApproved = false;
+                review.IsVisible = false;
+            }
+            ShowMessage("Review rejected and hidden.", "success");
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private async Task ToggleVisibility(int id)
+    {
+        IsProcessing = true;
+        try
+        {
+            var success = await ReviewApi.ToggleVisibilityAsync(id);
+            var review = Reviews.FirstOrDefault(r => r.Id == id);
+            if (review != null)
+            {
+                review.IsVisible = !review.IsVisible;
+                ShowMessage($"Review is now {(review.IsVisible ? "visible" : "hidden")}.", "success");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+}

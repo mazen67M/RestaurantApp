@@ -1,0 +1,427 @@
+@page "/admin/users"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.UserApiService UserApi
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Users - Restaurant Admin</PageTitle>
+
+<div class="users-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">User Management</h1>
+            <p class="page-subtitle">Manage customers and admin users</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddModal">
+            <i class="bi bi-plus-lg"></i> Add User
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" placeholder="Search users..." @bind="SearchQuery" @bind:event="oninput" @onkeypress="@(async (e) => { if (e.Key == "Enter") await LoadUsers(); })" />
+        </div>
+        <button class="btn btn-outline-primary" @onclick="LoadUsers">
+            <i class="bi bi-search"></i> Search
+        </button>
+        <div class="filter-group">
+            <select class="form-select" @bind="RoleFilter">
+                <option value="">All Roles</option>
+                <option value="Customer">Customers</option>
+                <option value="Admin">Admins</option>
+                <option value="SuperAdmin">Super Admins</option>
+            </select>
+            <select class="form-select" @bind="StatusFilter">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Orders</th>
+                        <th>Total Spent</th>
+                        <th>Joined</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (IsLoading)
+                    {
+                        <tr>
+                            <td colspan="9" class="text-center py-4">
+                                <div class="spinner-border text-primary"></div>
+                            </td>
+                        </tr>
+                    }
+                    else if (!FilteredUsers.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="text-center py-4">
+                                <i class="bi bi-people text-muted" style="font-size: 2rem;"></i>
+                                <p class="text-muted mb-0 mt-2">No users found</p>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var user in FilteredUsers)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="user-info">
+                                        <div class="user-avatar">
+                                            @if (!string.IsNullOrEmpty(user.ProfileImageUrl))
+                                            {
+                                                <img src="@user.ProfileImageUrl" alt="@user.FullName" />
+                                            }
+                                            else
+                                            {
+                                                <span>@(user.FullName.Length > 0 ? user.FullName.Substring(0, 1) : "?")</span>
+                                            }
+                                        </div>
+                                        <span class="user-name">@user.FullName</span>
+                                    </div>
+                                </td>
+                                <td>@user.Email</td>
+                                <td>@user.Phone</td>
+                                <td>
+                                    <span class="role-badge @user.Role.ToLower()">
+                                        @user.Role
+                                    </span>
+                                </td>
+                                <td>@user.OrderCount</td>
+                                <td><strong>@user.TotalSpent.ToString("C")</strong></td>
+                                <td>@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" checked="@user.IsActive" @onchange="@(() => ToggleUserStatus(user))" />
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="@(() => EditUser(user))" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ViewUserOrders(user.Id))" title="View Orders">
+                                            <i class="bi bi-receipt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteUser(user.Id))" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="table-footer">
+            <span class="showing-text">Showing @FilteredUsers.Count() of @Users.Count users</span>
+        </div>
+    </div>
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>@(IsEditing ? "Edit User" : "Add User")</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" @bind="EditingUser.FullName" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind="EditingUser.Email" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" @bind="EditingUser.Phone" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" @bind="EditingUser.Role">
+                            <option value="Customer">Customer</option>
+                            <option value="Admin">Admin</option>
+                            <option value="SuperAdmin">Super Admin</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            @if (!IsEditing)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <div class="form-group mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" @bind="NewUserPassword" placeholder="Minimum 6 characters" />
+                        </div>
+                    </div>
+                </div>
+            }
+            <div class="form-group mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" @bind="EditingUser.IsActive" />
+                    <label class="form-check-label">Account is active</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveUser">
+                <i class="bi bi-check-lg"></i> Save
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditing { get; set; } = false;
+    private string SearchQuery { get; set; } = "";
+    private string RoleFilter { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+    private List<RestaurantApp.Web.Services.UserDto> Users { get; set; } = new();
+    private RestaurantApp.Web.Services.UserDto EditingUser { get; set; } = new();
+    private string NewUserPassword { get; set; } = "";
+    private string? Message { get; set; }
+    private string MessageType { get; set; } = "";
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+
+    private IEnumerable<RestaurantApp.Web.Services.UserDto> FilteredUsers => Users
+        .Where(u => string.IsNullOrEmpty(SearchQuery) || 
+                    u.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    u.Email.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+        .Where(u => string.IsNullOrEmpty(RoleFilter) || u.Role == RoleFilter)
+        .Where(u => string.IsNullOrEmpty(StatusFilter) || 
+                    (StatusFilter == "active" && u.IsActive) ||
+                    (StatusFilter == "inactive" && !u.IsActive));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        IsLoading = true;
+        try
+        {
+            Users = await UserApi.GetUsersAsync(RoleFilter, StatusFilter, SearchQuery);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading users: {ex.Message}");
+            ShowMessage($"Error loading users: {ex.Message}", "error");
+            Users = new List<RestaurantApp.Web.Services.UserDto>();
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditing = false;
+        EditingUser = new RestaurantApp.Web.Services.UserDto { IsActive = true, Role = "Customer" };
+        NewUserPassword = "";
+        ShowModal = true;
+        StateHasChanged();
+    }
+
+    private void EditUser(RestaurantApp.Web.Services.UserDto user)
+    {
+        IsEditing = true;
+        EditingUser = new RestaurantApp.Web.Services.UserDto
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            Role = user.Role,
+            IsActive = user.IsActive
+        };
+        ShowModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+    }
+
+    private async Task SaveUser()
+    {
+        if (string.IsNullOrWhiteSpace(EditingUser.FullName) || string.IsNullOrWhiteSpace(EditingUser.Email))
+        {
+            ShowMessage("Full Name and Email are required", "error");
+            return;
+        }
+
+        if (!IsEditing && (string.IsNullOrWhiteSpace(NewUserPassword) || NewUserPassword.Length < 6))
+        {
+            ShowMessage("Password must be at least 6 characters", "error");
+            return;
+        }
+
+        IsLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            bool success;
+            if (IsEditing)
+            {
+                var request = new RestaurantApp.Web.Services.UpdateUserRequest
+                {
+                    FullName = EditingUser.FullName,
+                    Phone = EditingUser.Phone,
+                    Role = EditingUser.Role,
+                    IsActive = EditingUser.IsActive
+                };
+                
+                success = await UserApi.UpdateUserAsync(EditingUser.Id, request);
+            }
+            else
+            {
+                var request = new RestaurantApp.Web.Services.CreateUserRequest
+                {
+                    Email = EditingUser.Email,
+                    FullName = EditingUser.FullName,
+                    Password = NewUserPassword,
+                    Phone = EditingUser.Phone,
+                    Role = EditingUser.Role
+                };
+                
+                success = await UserApi.CreateUserAsync(request);
+            }
+
+            if (success)
+            {
+                ShowMessage(IsEditing ? "User updated successfully" : "User created successfully", "success");
+                CloseModal();
+                await LoadUsers();
+            }
+            else
+            {
+                ShowMessage(IsEditing ? "Failed to update user" : "Failed to create user", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleUserStatus(RestaurantApp.Web.Services.UserDto user)
+    {
+        try
+        {
+            var request = new RestaurantApp.Web.Services.UpdateUserRequest
+            {
+                IsActive = !user.IsActive
+            };
+            
+            var success = await UserApi.UpdateUserAsync(user.Id, request);
+            if (success)
+            {
+                user.IsActive = !user.IsActive;
+                ShowMessage($"User {(user.IsActive ? "activated" : "deactivated")} successfully", "success");
+            }
+            else
+            {
+                ShowMessage("Failed to update user status", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private void ViewUserOrders(int userId)
+    {
+        Navigation.NavigateTo($"/admin/orders?userId={userId}");
+    }
+
+    private async Task DeleteUser(int userId)
+    {
+        var user = Users.FirstOrDefault(u => u.Id == userId);
+        if (user != null)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to deactivate user '{user.FullName}'?");
+            if (!confirmed) return;
+        }
+
+        try
+        {
+            var success = await UserApi.DeactivateUserAsync(userId);
+            if (success)
+            {
+                Users.RemoveAll(u => u.Id == userId);
+                ShowMessage("User deactivated successfully", "success");
+            }
+            else
+            {
+                ShowMessage("Failed to deactivate user", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+}

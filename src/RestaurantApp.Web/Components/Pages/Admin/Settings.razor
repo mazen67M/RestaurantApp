@@ -1,0 +1,387 @@
+@page "/admin/settings"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.RestaurantApiService RestaurantApi
+@inject RestaurantApp.Web.Services.MediaApiService MediaApi
+@inject NavigationManager Navigation
+
+<PageTitle>Settings - Restaurant Admin</PageTitle>
+
+<div class="settings-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Settings</h1>
+            <p class="page-subtitle">Manage your restaurant profile and global configuration</p>
+        </div>
+        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@IsSaving">
+            @if (IsSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            <i class="bi bi-save me-2"></i> Save Changes
+        </button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted">Loading settings...</p>
+        </div>
+    }
+    else
+    {
+        <div class="settings-grid">
+            <!-- Restaurant Profile -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <i class="bi bi-shop"></i>
+                    Restaurant Profile
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Restaurant Name (English)</label>
+                            <input type="text" class="form-control" @bind="RestaurantData.NameEn" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Restaurant Name (Arabic)</label>
+                            <input type="text" class="form-control" @bind="RestaurantData.NameAr" dir="rtl" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Description (English)</label>
+                            <textarea class="form-control" rows="3" @bind="RestaurantData.DescriptionEn"></textarea>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Description (Arabic)</label>
+                            <textarea class="form-control" rows="3" @bind="RestaurantData.DescriptionAr" dir="rtl"></textarea>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Primary Phone</label>
+                            <input type="text" class="form-control" @bind="RestaurantData.Phone" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Contact Email</label>
+                            <input type="email" class="form-control" @bind="RestaurantData.Email" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Branding -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <i class="bi bi-palette"></i>
+                    Branding & Appearance
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Restaurant Logo</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                                <input type="text" class="form-control" @bind="RestaurantData.LogoUrl" placeholder="URL or upload below" />
+                            </div>
+                            <div class="upload-area p-2 border rounded bg-light text-center small mb-2">
+                                <InputFile OnChange="@((e) => HandleUpload(e, "logo"))" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp" />
+                                @if (IsUploadingLogo)
+                                {
+                                    <div class="spinner-border spinner-border-sm text-primary mt-1"></div>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(RestaurantData.LogoUrl))
+                            {
+                                <div class="mt-2 preview-box">
+                                    <img src="@RestaurantData.LogoUrl" alt="Logo Preview" class="img-preview" />
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Cover Image</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="bi bi-image"></i></span>
+                                <input type="text" class="form-control" @bind="RestaurantData.CoverImageUrl" placeholder="URL or upload below" />
+                            </div>
+                            <div class="upload-area p-2 border rounded bg-light text-center small mb-2">
+                                <InputFile OnChange="@((e) => HandleUpload(e, "cover"))" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp" />
+                                @if (IsUploadingCover)
+                                {
+                                    <div class="spinner-border spinner-border-sm text-primary mt-1"></div>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(RestaurantData.CoverImageUrl))
+                            {
+                                <div class="mt-2 preview-box">
+                                    <img src="@RestaurantData.CoverImageUrl" alt="Cover Preview" class="img-preview cover" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Primary Brand Color</label>
+                            <div class="color-picker-group">
+                                <input type="color" class="form-control form-control-color" @bind="RestaurantData.PrimaryColor" />
+                                <input type="text" class="form-control" @bind="RestaurantData.PrimaryColor" />
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Secondary Brand Color</label>
+                            <div class="color-picker-group">
+                                <input type="color" class="form-control form-control-color" @bind="RestaurantData.SecondaryColor" />
+                                <input type="text" class="form-control" @bind="RestaurantData.SecondaryColor" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <i class="bi bi-cpu"></i>
+                    System Control
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" @bind="RestaurantData.IsActive" id="isActive" />
+                        <label class="form-check-label" for="isActive">
+                            Restaurant is Active (Visible on Mobile Apps)
+                        </label>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Disabling the restaurant will hide it from all mobile applications and prevent new orders.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show @(MessageType == "success" ? "bg-success" : "bg-danger") text-white">
+            <div class="toast-body">
+                <i class="bi @(MessageType == "success" ? "bi-check-circle" : "bi-exclamation-circle") me-2"></i>
+                @Message
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .settings-page {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .settings-grid {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .settings-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1.25rem 1.5rem;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #1e293b;
+    }
+
+    .card-header i {
+        color: #f57c00;
+        font-size: 1.25rem;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .preview-box {
+        background: #f1f5f9;
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .img-preview {
+        max-height: 80px;
+        border-radius: 5px;
+    }
+
+    .img-preview.cover {
+        max-width: 100%;
+        max-height: 120px;
+    }
+
+    .color-picker-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .form-control-color {
+        width: 50px;
+        padding: 0.2rem;
+    }
+
+    .dark-mode .settings-card {
+        background: #1e293b;
+        color: #f8fafc;
+    }
+
+    .dark-mode .card-header {
+        background: #0f172a;
+        color: #f8fafc;
+        border-color: #334155;
+    }
+</style>
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool IsSaving { get; set; } = false;
+    private bool IsUploadingLogo { get; set; } = false;
+    private bool IsUploadingCover { get; set; } = false;
+    private RestaurantApp.Web.Services.RestaurantDto RestaurantData { get; set; } = new();
+    private string? Message { get; set; }
+    private string? MessageType { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+    }
+
+    private async Task LoadSettings()
+    {
+        IsLoading = true;
+        try
+        {
+            var data = await RestaurantApi.GetRestaurantAsync();
+            if (data != null)
+            {
+                RestaurantData = data;
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        // Basic Validation
+        if (string.IsNullOrWhiteSpace(RestaurantData.NameEn) || string.IsNullOrWhiteSpace(RestaurantData.NameAr))
+        {
+            ShowMessage("Restaurant name is required in both English and Arabic.", "error");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(RestaurantData.Email) && !RestaurantData.Email.Contains("@"))
+        {
+            ShowMessage("Please enter a valid email address.", "error");
+            return;
+        }
+
+        IsSaving = true;
+        Message = null;
+        
+        try
+        {
+            var request = new RestaurantApp.Web.Services.UpdateRestaurantRequest
+            {
+                NameAr = RestaurantData.NameAr,
+                NameEn = RestaurantData.NameEn,
+                DescriptionAr = RestaurantData.DescriptionAr,
+                DescriptionEn = RestaurantData.DescriptionEn,
+                LogoUrl = RestaurantData.LogoUrl,
+                CoverImageUrl = RestaurantData.CoverImageUrl,
+                PrimaryColor = RestaurantData.PrimaryColor,
+                SecondaryColor = RestaurantData.SecondaryColor,
+                Phone = RestaurantData.Phone,
+                Email = RestaurantData.Email,
+                IsActive = RestaurantData.IsActive
+            };
+
+            var success = await RestaurantApi.UpdateRestaurantAsync(request);
+            if (success)
+            {
+                ShowMessage("Settings saved successfully!", "success");
+            }
+            else
+            {
+                ShowMessage("Failed to save settings. Please try again.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task HandleUpload(InputFileChangeEventArgs e, string type)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (type == "logo") IsUploadingLogo = true;
+        else IsUploadingCover = true;
+        
+        try
+        {
+            using var stream = file.OpenReadStream(2 * 1024 * 1024);
+            var imageUrl = await MediaApi.UploadImageAsync(stream, file.Name);
+            
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                if (type == "logo") RestaurantData.LogoUrl = imageUrl;
+                else RestaurantData.CoverImageUrl = imageUrl;
+                ShowMessage("Image uploaded successfully!", "success");
+            }
+            else
+            {
+                ShowMessage("Upload failed.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Upload error: {ex.Message}", "error");
+        }
+        finally
+        {
+            if (type == "logo") IsUploadingLogo = false;
+            else IsUploadingCover = false;
+        }
+    }
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        await Task.Delay(3000);
+        Message = null;
+        StateHasChanged();
+    }
+}

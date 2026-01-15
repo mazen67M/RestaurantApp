@@ -1,0 +1,89 @@
+@using RestaurantApp.Web.Services
+@inject NotificationService NotificationService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<header class="top-navbar">
+    <div class="navbar-left">
+        <button class="mobile-toggle d-lg-none" @onclick="ToggleSidebar">
+            <i class="bi bi-list"></i>
+        </button>
+        <div class="search-box d-none d-md-flex">
+            <i class="bi bi-search"></i>
+            <input type="text" placeholder="Search orders, customers..." />
+        </div>
+    </div>
+
+    <div class="navbar-right">
+        <button class="navbar-btn" @onclick="ToggleTheme" title="Toggle Theme">
+            <i class="bi @(IsDarkMode ? "bi-sun" : "bi-moon")"></i>
+        </button>
+        
+        <div class="notification-dropdown">
+            <button class="navbar-btn" @onclick="NotificationService.ClearNotifications">
+                <i class="bi bi-bell"></i>
+                @if (NotificationService.NotificationCount > 0)
+                {
+                    <span class="notification-badge">@NotificationService.NotificationCount</span>
+                }
+            </button>
+        </div>
+
+        <div class="user-dropdown">
+            <button class="user-btn" @onclick="ToggleUserDropdown">
+                <div class="user-avatar">
+                    <i class="bi bi-person"></i>
+                </div>
+                <span class="user-name d-none d-md-inline">Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            @if (UserDropdownOpen)
+            {
+                <div class="dropdown-menu-list">
+                    <NavLink class="dropdown-item" href="/admin/settings">
+                        <i class="bi bi-gear"></i> Settings
+                    </NavLink>
+                    <hr />
+                    <a class="dropdown-item logout" href="/admin/logout">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+</header>
+
+@code {
+    private bool IsDarkMode { get; set; } = false;
+    private bool UserDropdownOpen { get; set; } = false;
+
+    private async Task ToggleTheme()
+    {
+        IsDarkMode = !IsDarkMode;
+        await JS.InvokeVoidAsync("localStorage.setItem", "admin-theme", IsDarkMode ? "dark" : "light");
+        await JS.InvokeVoidAsync("document.getElementById('admin-root').classList.toggle", "dark-mode", IsDarkMode);
+    }
+
+    private void ToggleUserDropdown() => UserDropdownOpen = !UserDropdownOpen;
+
+    private void ToggleSidebar()
+    {
+        // For mobile toggle, we might need a shared service or event
+        // But let's focus on the desktop toggle first which is in the sidebar
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var savedTheme = await JS.InvokeAsync<string>("localStorage.getItem", "admin-theme");
+            if (!string.IsNullOrEmpty(savedTheme))
+            {
+                IsDarkMode = savedTheme == "dark";
+                await JS.InvokeVoidAsync("document.getElementById('admin-root').classList.toggle", "dark-mode", IsDarkMode);
+                StateHasChanged();
+            }
+        }
+    }
+}

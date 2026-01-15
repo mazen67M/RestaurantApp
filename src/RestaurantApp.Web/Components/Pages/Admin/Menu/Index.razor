@@ -1,0 +1,461 @@
+@page "/admin/menu"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject RestaurantApp.Web.Services.MenuApiService MenuApi
+@inject RestaurantApp.Web.Services.CategoryApiService CategoryApi
+@inject RestaurantApp.Web.Services.MediaApiService MediaApi
+@inject IJSRuntime JS
+
+<PageTitle>Menu Items - Restaurant Admin</PageTitle>
+
+<div class="menu-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Menu Items</h1>
+            <p class="page-subtitle">Manage your food menu - changes sync to mobile app instantly</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddModal">
+            <i class="bi bi-plus-lg"></i> Add Item
+        </button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading menu items...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Filters -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" placeholder="Search menu items..." @bind="SearchQuery" @bind:event="oninput" />
+            </div>
+            <div class="filter-group">
+                <select class="form-select" @bind="CategoryFilter">
+                    <option value="">All Categories</option>
+                    @foreach (var cat in Categories)
+                    {
+                        <option value="@cat.Id">@cat.NameEn</option>
+                    }
+                </select>
+                <select class="form-select" @bind="StatusFilter">
+                    <option value="">All Status</option>
+                    <option value="true">Available</option>
+                    <option value="false">Unavailable</option>
+                </select>
+                <button class="btn btn-outline-primary" @onclick="RefreshData">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row mb-4">
+            <div class="stat-badge">
+                <i class="bi bi-box-seam"></i>
+                Total: @MenuItems.Count items
+            </div>
+            <div class="stat-badge available">
+                <i class="bi bi-check-circle"></i>
+                Available: @MenuItems.Count(i => i.IsAvailable)
+            </div>
+            <div class="stat-badge unavailable">
+                <i class="bi bi-x-circle"></i>
+                Unavailable: @MenuItems.Count(i => !i.IsAvailable)
+            </div>
+        </div>
+
+        <!-- Menu Grid -->
+        <div class="menu-grid">
+            @if (!FilteredItems.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No menu items found</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var item in FilteredItems)
+                {
+                    <div class="menu-item-card @(item.IsAvailable ? "" : "unavailable")">
+                        <div class="item-image">
+                            @if (!string.IsNullOrEmpty(item.ImageUrl))
+                            {
+                                <img src="@item.ImageUrl" alt="@item.NameEn" />
+                            }
+                            else
+                            {
+                                <div class="placeholder-img">
+                                    <i class="bi bi-egg-fried"></i>
+                                </div>
+                            }
+                            <span class="category-tag">@item.CategoryName</span>
+                            @if (!item.IsAvailable)
+                            {
+                                <div class="unavailable-overlay">
+                                    <span>Unavailable</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="item-body">
+                            <h3>@item.NameEn</h3>
+                            <p class="item-name-ar">@item.NameAr</p>
+                            <p class="item-description">@item.DescriptionEn</p>
+                            <div class="item-footer">
+                                <span class="item-price">@item.Price.ToString("C")</span>
+                                <div class="item-actions">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="@(() => EditItem(item))" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm @(item.IsAvailable ? "btn-outline-warning" : "btn-outline-success")" 
+                                            @onclick="@(() => ToggleAvailability(item))" 
+                                            title="@(item.IsAvailable ? "Mark Unavailable" : "Mark Available")">
+                                        <i class="bi @(item.IsAvailable ? "bi-eye-slash" : "bi-eye")"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteItem(item.Id))" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="edit-modal">
+        <div class="modal-header">
+            <h4>@(IsEditing ? "Edit Menu Item" : "Add Menu Item")</h4>
+            <button class="close-btn" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (English) *</label>
+                        <input type="text" class="form-control" @bind="EditingItem.NameEn" />
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Name (Arabic) *</label>
+                        <input type="text" class="form-control" @bind="EditingItem.NameAr" dir="rtl" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Description (English)</label>
+                <textarea class="form-control" @bind="EditingItem.DescriptionEn" rows="2"></textarea>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Description (Arabic)</label>
+                <textarea class="form-control" @bind="EditingItem.DescriptionAr" rows="2" dir="rtl"></textarea>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Category *</label>
+                        <select class="form-select" @bind="EditingItem.CategoryId">
+                            @foreach (var cat in Categories)
+                            {
+                                <option value="@cat.Id">@cat.NameEn</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Price *</label>
+                        <input type="number" step="0.01" class="form-control" @bind="EditingItem.Price" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">Item Image</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" @bind="EditingItem.ImageUrl" placeholder="https://... or upload below" />
+                </div>
+                <div class="upload-container p-3 border rounded bg-light text-center">
+                    <InputFile OnChange="HandleFileSelected" class="form-control mb-2" id="itemImage" accept=".jpg,.jpeg,.png,.webp" />
+                    @if (IsUploading)
+                    {
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2">Uploading...</span>
+                    }
+                    else if (!string.IsNullOrEmpty(EditingItem.ImageUrl))
+                    {
+                        <div class="mt-2 text-success small">
+                            <i class="bi bi-check-circle-fill"></i> Image ready
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" @bind="EditingItem.IsAvailable" />
+                    <label class="form-check-label">Item is available for order</label>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" @bind="EditingItem.IsFeatured" />
+                    <label class="form-check-label">Featured on homepage</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveItem" disabled="@IsSaving">
+                @if (IsSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                <i class="bi bi-check-lg"></i> Save & Sync
+            </button>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="toast-notification @MessageType">
+        <i class="bi @(MessageType == "success" ? "bi-check-circle" : "bi-exclamation-circle")"></i>
+        @Message
+    </div>
+}
+
+@code {
+    private bool IsLoading { get; set; } = true;
+    private bool IsSaving { get; set; } = false;
+    private bool IsUploading { get; set; } = false;
+    private bool ShowModal { get; set; } = false;
+    private bool IsEditing { get; set; } = false;
+    private string SearchQuery { get; set; } = "";
+    private string CategoryFilter { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+    private string Message { get; set; } = "";
+    private string MessageType { get; set; } = "success";
+    private List<RestaurantApp.Web.Services.MenuItemDto> MenuItems { get; set; } = new();
+    private List<RestaurantApp.Web.Services.CategoryDto> Categories { get; set; } = new();
+    private RestaurantApp.Web.Services.MenuItemDto EditingItem { get; set; } = new();
+
+    private IEnumerable<RestaurantApp.Web.Services.MenuItemDto> FilteredItems => MenuItems
+        .Where(i => string.IsNullOrEmpty(SearchQuery) || 
+                    i.NameEn.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    i.NameAr.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+        .Where(i => string.IsNullOrEmpty(CategoryFilter) || i.CategoryId.ToString() == CategoryFilter)
+        .Where(i => string.IsNullOrEmpty(StatusFilter) || i.IsAvailable.ToString().ToLower() == StatusFilter);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            // Load from real API
+            Categories = await CategoryApi.GetCategoriesAsync();
+            MenuItems = await MenuApi.GetMenuItemsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error loading data: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+        ShowMessage("Data refreshed from database!", "success");
+    }
+
+    private void ShowAddModal()
+    {
+        IsEditing = false;
+        EditingItem = new RestaurantApp.Web.Services.MenuItemDto 
+        { 
+            IsAvailable = true, 
+            CategoryId = Categories.FirstOrDefault()?.Id ?? 1 
+        };
+        ShowModal = true;
+    }
+
+    private void EditItem(RestaurantApp.Web.Services.MenuItemDto item)
+    {
+        IsEditing = true;
+        EditingItem = new RestaurantApp.Web.Services.MenuItemDto
+        {
+            Id = item.Id,
+            NameEn = item.NameEn,
+            NameAr = item.NameAr,
+            DescriptionEn = item.DescriptionEn,
+            DescriptionAr = item.DescriptionAr,
+            Price = item.Price,
+            CategoryId = item.CategoryId,
+            ImageUrl = item.ImageUrl,
+            IsAvailable = item.IsAvailable,
+            IsFeatured = item.IsFeatured,
+            PreparationTimeMinutes = item.PreparationTimeMinutes,
+            Calories = item.Calories
+        };
+        ShowModal = true;
+    }
+
+    private void CloseModal()
+    {
+        ShowModal = false;
+        EditingItem = new();
+        IsUploading = false;
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // Limit size to 2MB
+        if (file.Size > 2 * 1024 * 1024)
+        {
+            ShowMessage("File size exceeded 2MB limit", "error");
+            return;
+        }
+
+        IsUploading = true;
+        try
+        {
+            using var stream = file.OpenReadStream(2 * 1024 * 1024);
+            var imageUrl = await MediaApi.UploadImageAsync(stream, file.Name);
+            
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                EditingItem.ImageUrl = imageUrl;
+                ShowMessage("Image uploaded successfully!", "success");
+            }
+            else
+            {
+                ShowMessage("Upload failed. Verify server settings.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Upload error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsUploading = false;
+        }
+    }
+
+    private async Task SaveItem()
+    {
+        IsSaving = true;
+        try
+        {
+            bool success;
+            if (IsEditing)
+            {
+                success = await MenuApi.UpdateMenuItemAsync(EditingItem.Id, EditingItem);
+            }
+            else
+            {
+                success = await MenuApi.CreateMenuItemAsync(EditingItem);
+            }
+
+            if (success)
+            {
+                await LoadData(); // Refresh from API
+                CloseModal();
+                ShowMessage(IsEditing ? "Menu item updated! Changes synced to mobile app." : "Menu item created! Now visible in mobile app.", "success");
+            }
+            else
+            {
+                ShowMessage("Failed to save. Please try again.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ToggleAvailability(RestaurantApp.Web.Services.MenuItemDto item)
+    {
+        try
+        {
+            var success = await MenuApi.ToggleAvailabilityAsync(item.Id);
+            if (success)
+            {
+                item.IsAvailable = !item.IsAvailable;
+                ShowMessage($"{item.NameEn} is now {(item.IsAvailable ? "available" : "unavailable")}. Mobile app updated!", "success");
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private async Task DeleteItem(int id)
+    {
+        var item = MenuItems.FirstOrDefault(i => i.Id == id);
+        if (item != null)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete '{item.NameEn}'? This action cannot be undone.");
+            if (!confirmed) return;
+        }
+
+        try
+        {
+            var success = await MenuApi.DeleteMenuItemAsync(id);
+            if (success)
+            {
+                await LoadData();
+                ShowMessage("Item deleted. Removed from mobile app.", "success");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private async void ShowMessage(string message, string type)
+    {
+        Message = message;
+        MessageType = type;
+        StateHasChanged();
+        
+        await Task.Delay(3000);
+        Message = "";
+        StateHasChanged();
+    }
+}
