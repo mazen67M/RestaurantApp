@@ -17,3 +17,4 @@ H:\Restaurant APP\src\RestaurantApp.Infrastructure\obj\Debug\net10.0\refint\Rest
 H:\Restaurant APP\src\RestaurantApp.Infrastructure\obj\Debug\net10.0\RestaurantApp.Infrastructure.pdb
 H:\Restaurant APP\src\RestaurantApp.Infrastructure\obj\Debug\net10.0\RestaurantApp.Infrastructure.genruntimeconfig.cache
 H:\Restaurant APP\src\RestaurantApp.Infrastructure\obj\Debug\net10.0\ref\RestaurantApp.Infrastructure.dll
+H:\Restaurant APP\src\RestaurantApp.Infrastructure\obj\Debug\net10.0\RestaurantApp.Infrastructure.sourcelink.json

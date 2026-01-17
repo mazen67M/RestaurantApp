@@ -18,7 +18,7 @@
     --transition: all 0.3s ease;
 }
 
-.admin-container.dark-mode {
+.dark-mode {
     --bg-color: #0f172a;
     --card-bg: #1e293b;
     --text-primary: #f8fafc;
@@ -389,18 +389,17 @@ hr {
     min-height: calc(100vh - var(--navbar-height));
 }
 
-/* Dark Mode specific overrides */
-.admin-container.dark-mode .top-navbar {
+.dark-mode .top-navbar {
     background: var(--card-bg);
     border-color: var(--border-color);
 }
 
-.admin-container.dark-mode .main-content {
+.dark-mode .main-content {
     background-color: var(--bg-color);
     color: var(--text-primary);
 }
 
-.admin-container.dark-mode .search-box {
+.dark-mode .search-box {
     background: #0f172a;
 }
 

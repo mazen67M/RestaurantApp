@@ -94,3 +94,21 @@ window.dashboardCharts = {
         }
     }
 };
+
+window.themeManager = {
+    setTheme: function(isDark) {
+        if (isDark) {
+            document.body.classList.add('dark-mode');
+            localStorage.setItem('admin-theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            localStorage.setItem('admin-theme', 'light');
+        }
+    },
+    initTheme: function() {
+        const savedTheme = localStorage.getItem('admin-theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+        }
+    }
+};

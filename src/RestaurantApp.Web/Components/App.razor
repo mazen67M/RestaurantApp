@@ -14,6 +14,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/dashboard.js"></script>
     <HeadOutlet />
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('admin-theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        })();
+    </script>
 </head>
 
 <body>

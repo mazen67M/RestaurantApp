@@ -221,7 +221,6 @@ H:\Restaurant APP\src\RestaurantApp.API\obj\Debug\net10.0\refint\RestaurantApp.A
 H:\Restaurant APP\src\RestaurantApp.API\obj\Debug\net10.0\RestaurantApp.API.pdb
 H:\Restaurant APP\src\RestaurantApp.API\obj\Debug\net10.0\RestaurantApp.API.genruntimeconfig.cache
 H:\Restaurant APP\src\RestaurantApp.API\obj\Debug\net10.0\ref\RestaurantApp.API.dll
-H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\RestaurantApp.API.staticwebassets.runtime.json
 H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll
 H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\Serilog.dll
 H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\Serilog.AspNetCore.dll
@@ -234,3 +233,6 @@ H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\Serilog.Sinks.Debug.dl
 H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\Serilog.Sinks.File.dll
 H:\Restaurant APP\src\RestaurantApp.Api\bin\Debug\net10.0\logs\api-log20260113.json
 H:\Restaurant APP\src\RestaurantApp.API\bin\Debug\net10.0\logs\api-log20260114.json
+H:\Restaurant APP\src\RestaurantApp.Api\obj\Debug\net10.0\RestaurantApp.API.sourcelink.json
+H:\Restaurant APP\src\RestaurantApp.Api\bin\Debug\net10.0\logs\api-log20260116.json
+H:\Restaurant APP\src\RestaurantApp.Api\bin\Debug\net10.0\logs\api-log20260117.json

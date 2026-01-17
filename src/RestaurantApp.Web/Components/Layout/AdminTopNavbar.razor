@@ -61,8 +61,7 @@
     private async Task ToggleTheme()
     {
         IsDarkMode = !IsDarkMode;
-        await JS.InvokeVoidAsync("localStorage.setItem", "admin-theme", IsDarkMode ? "dark" : "light");
-        await JS.InvokeVoidAsync("document.getElementById('admin-root').classList.toggle", "dark-mode", IsDarkMode);
+        await JS.InvokeVoidAsync("themeManager.setTheme", IsDarkMode);
     }
 
     private void ToggleUserDropdown() => UserDropdownOpen = !UserDropdownOpen;
@@ -77,12 +76,20 @@
     {
         if (firstRender)
         {
-            var savedTheme = await JS.InvokeAsync<string>("localStorage.getItem", "admin-theme");
-            if (!string.IsNullOrEmpty(savedTheme))
+            try
             {
-                IsDarkMode = savedTheme == "dark";
-                await JS.InvokeVoidAsync("document.getElementById('admin-root').classList.toggle", "dark-mode", IsDarkMode);
-                StateHasChanged();
+                var savedTheme = await JS.InvokeAsync<string>("localStorage.getItem", "admin-theme");
+                if (!string.IsNullOrEmpty(savedTheme))
+                {
+                    IsDarkMode = savedTheme == "dark";
+                    StateHasChanged();
+                }
+                
+                await JS.InvokeVoidAsync("themeManager.initTheme");
+            }
+            catch
+            {
+                // Ignore errors during prerendering
             }
         }
     }

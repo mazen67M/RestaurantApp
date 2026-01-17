@@ -13,3 +13,4 @@ H:\Restaurant APP\src\RestaurantApp.Application\obj\Debug\net10.0\RestaurantApp.
 H:\Restaurant APP\src\RestaurantApp.Application\obj\Debug\net10.0\refint\RestaurantApp.Application.dll
 H:\Restaurant APP\src\RestaurantApp.Application\obj\Debug\net10.0\RestaurantApp.Application.pdb
 H:\Restaurant APP\src\RestaurantApp.Application\obj\Debug\net10.0\ref\RestaurantApp.Application.dll
+H:\Restaurant APP\src\RestaurantApp.Application\obj\Debug\net10.0\RestaurantApp.Application.sourcelink.json
