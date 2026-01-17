@@ -10,14 +10,23 @@ namespace RestaurantApp.Infrastructure.Services;
 public class MenuService : IMenuService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICacheService _cacheService;
 
-    public MenuService(ApplicationDbContext context)
+    public MenuService(ApplicationDbContext context, ICacheService cacheService)
     {
         _context = context;
+        _cacheService = cacheService;
     }
 
     public async Task<ApiResponse<List<MenuCategoryDto>>> GetCategoriesAsync(bool includeInactive = false)
     {
+        // Try to get from cache first
+        var cacheKey = $"menu:categories:{includeInactive}";
+        var cached = await _cacheService.GetAsync<List<MenuCategoryDto>>(cacheKey);
+        
+        if (cached != null)
+            return ApiResponse<List<MenuCategoryDto>>.SuccessResponse(cached);
+
         var query = _context.MenuCategories.AsQueryable();
         
         if (!includeInactive)
@@ -27,6 +36,7 @@ public class MenuService : IMenuService
 
         var categories = await query
             .Include(c => c.MenuItems)
+            .AsNoTracking()
             .OrderBy(c => c.DisplayOrder)
             .ToListAsync();
 
@@ -42,6 +52,9 @@ public class MenuService : IMenuService
             c.MenuItems.Count(i => i.IsAvailable)
         )).ToList();
 
+        // Cache for 10 minutes
+        await _cacheService.SetAsync(cacheKey, dtos, TimeSpan.FromMinutes(10));
+
         return ApiResponse<List<MenuCategoryDto>>.SuccessResponse(dtos);
     }
 
@@ -49,6 +62,7 @@ public class MenuService : IMenuService
     {
         var category = await _context.MenuCategories
             .Include(c => c.MenuItems)
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (category == null)
@@ -75,6 +89,7 @@ public class MenuService : IMenuService
     {
         var items = await _context.MenuItems
             .Where(i => i.CategoryId == categoryId && i.IsAvailable)
+            .AsNoTracking()
             .OrderBy(i => i.DisplayOrder)
             .ToListAsync();
 
@@ -139,6 +154,7 @@ public class MenuService : IMenuService
     {
         var item = await _context.MenuItems
             .Include(i => i.AddOns)
+            .AsNoTracking()
             .FirstOrDefaultAsync(i => i.Id == id);
 
         if (item == null)
@@ -180,6 +196,7 @@ public class MenuService : IMenuService
                         i.NameEn.Contains(query) ||
                         (i.DescriptionAr != null && i.DescriptionAr.Contains(query)) ||
                         (i.DescriptionEn != null && i.DescriptionEn.Contains(query))))
+            .AsNoTracking()
             .Take(20)
             .ToListAsync();
 
@@ -201,6 +218,7 @@ public class MenuService : IMenuService
     {
         var items = await _context.MenuItems
             .Where(i => i.IsAvailable && i.IsPopular)
+            .AsNoTracking()
             .Take(count)
             .ToListAsync();
 
@@ -229,6 +247,7 @@ public class MenuService : IMenuService
     {
         var query = _context.MenuItems
             .Include(i => i.Category)
+            .AsNoTracking()
             .AsQueryable();
 
         // Apply filters
@@ -312,6 +331,10 @@ public class MenuService : IMenuService
         _context.MenuCategories.Add(category);
         await _context.SaveChangesAsync();
 
+        // Invalidate cache
+        await _cacheService.RemoveAsync("menu:categories:false");
+        await _cacheService.RemoveAsync("menu:categories:true");
+
         return await GetCategoryAsync(category.Id);
     }
 
@@ -332,6 +355,10 @@ public class MenuService : IMenuService
         category.IsActive = dto.IsActive;
 
         await _context.SaveChangesAsync();
+
+        // Invalidate cache
+        await _cacheService.RemoveAsync("menu:categories:false");
+        await _cacheService.RemoveAsync("menu:categories:true");
 
         return await GetCategoryAsync(id);
     }

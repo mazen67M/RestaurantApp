@@ -72,36 +72,46 @@ public class UserService : IUserService
             .Take(pageSize)
             .ToListAsync();
 
-        var userDtos = new List<UserDto>();
 
+        // Batch load order statistics for all users (fixes N+1 query problem)
+        var allUserIds = users.Select(u => u.Id).ToList();
+        
+        var orderStats = await _context.Orders
+            .Where(o => allUserIds.Contains(o.UserId))
+            .GroupBy(o => o.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                Count = g.Count(),
+                Total = g.Sum(o => o.Total)
+            })
+            .ToDictionaryAsync(x => x.UserId);
+
+        // Batch load user roles (still requires individual queries but cached by UserManager)
+        var userRolesDict = new Dictionary<int, string>();
         foreach (var user in users)
         {
-            var userRoles = await _userManager.GetRolesAsync(user);
-            var primaryRole = userRoles.FirstOrDefault() ?? "Customer";
+            var roles = await _userManager.GetRolesAsync(user);
+            userRolesDict[user.Id] = roles.FirstOrDefault() ?? "Customer";
+        }
 
-            var orderStats = await _context.Orders
-                .Where(o => o.UserId == user.Id)
-                .GroupBy(o => 1)
-                .Select(g => new
-                {
-                    Count = g.Count(),
-                    Total = g.Sum(o => o.Total)
-                })
-                .FirstOrDefaultAsync();
-
-            userDtos.Add(new UserDto(
+        // Map to DTOs using pre-loaded data
+        var userDtos = users.Select(user =>
+        {
+            var stats = orderStats.GetValueOrDefault(user.Id);
+            return new UserDto(
                 user.Id,
                 user.Email ?? "",
                 user.FullName,
                 user.PhoneNumber,
                 user.ProfileImageUrl,
-                primaryRole,
+                userRolesDict[user.Id],
                 user.IsActive,
-                orderStats?.Count ?? 0,
-                orderStats?.Total ?? 0,
+                stats?.Count ?? 0,
+                stats?.Total ?? 0,
                 user.CreatedAt
-            ));
-        }
+            );
+        }).ToList();
 
         var pagedResponse = new PagedResponse<UserDto>
         {

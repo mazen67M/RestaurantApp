@@ -224,15 +224,23 @@
     private string? Message { get; set; }
     private string MessageType { get; set; } = "";
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
+
 
     private IEnumerable<RestaurantApp.Web.Services.UserDto> FilteredUsers => Users
         .Where(u => string.IsNullOrEmpty(SearchQuery) || 
@@ -258,7 +266,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading users: {ex.Message}");
-            ShowMessage($"Error loading users: {ex.Message}", "error");
+            await ShowMessageAsync($"Error loading users: {ex.Message}", "error");
             Users = new List<RestaurantApp.Web.Services.UserDto>();
         }
         finally
@@ -302,13 +310,13 @@
     {
         if (string.IsNullOrWhiteSpace(EditingUser.FullName) || string.IsNullOrWhiteSpace(EditingUser.Email))
         {
-            ShowMessage("Full Name and Email are required", "error");
+            await ShowMessageAsync("Full Name and Email are required", "error");
             return;
         }
 
         if (!IsEditing && (string.IsNullOrWhiteSpace(NewUserPassword) || NewUserPassword.Length < 6))
         {
-            ShowMessage("Password must be at least 6 characters", "error");
+            await ShowMessageAsync("Password must be at least 6 characters", "error");
             return;
         }
 
@@ -346,18 +354,18 @@
 
             if (success)
             {
-                ShowMessage(IsEditing ? "User updated successfully" : "User created successfully", "success");
+                await ShowMessageAsync(IsEditing ? "User updated successfully" : "User created successfully", "success");
                 CloseModal();
                 await LoadUsers();
             }
             else
             {
-                ShowMessage(IsEditing ? "Failed to update user" : "Failed to create user", "error");
+                await ShowMessageAsync(IsEditing ? "Failed to update user" : "Failed to create user", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -379,16 +387,16 @@
             if (success)
             {
                 user.IsActive = !user.IsActive;
-                ShowMessage($"User {(user.IsActive ? "activated" : "deactivated")} successfully", "success");
+                await ShowMessageAsync($"User {(user.IsActive ? "activated" : "deactivated")} successfully", "success");
             }
             else
             {
-                ShowMessage("Failed to update user status", "error");
+                await ShowMessageAsync("Failed to update user status", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
     }
 
@@ -412,16 +420,16 @@
             if (success)
             {
                 Users.RemoveAll(u => u.Id == userId);
-                ShowMessage("User deactivated successfully", "success");
+                await ShowMessageAsync("User deactivated successfully", "success");
             }
             else
             {
-                ShowMessage("Failed to deactivate user", "error");
+                await ShowMessageAsync("Failed to deactivate user", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
     }
 }

@@ -9,6 +9,10 @@ using RestaurantApp.Infrastructure;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using RestaurantApp.API.Middleware;
+
 
 // CRITICAL: Clear default claim type mappings to prevent JWT handler from transforming claims
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
@@ -26,6 +30,52 @@ builder.Host.UseSerilog();
 
 // Add services to the container
 builder.Services.AddControllers();
+
+// Add FluentValidation
+builder.Services.AddValidatorsFromAssemblyContaining<RestaurantApp.Application.Validators.Order.CreateOrderDtoValidator>();
+builder.Services.AddFluentValidationAutoValidation();
+
+// Configure API Behavior for validation errors
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(e => e.Value?.Errors.Count > 0)
+            .SelectMany(e => e.Value!.Errors.Select(x => x.ErrorMessage))
+            .ToList();
+
+        var response = RestaurantApp.Application.Common.ApiResponse.ErrorResponse(
+            "Validation failed", errors);
+
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(response);
+    };
+});
+
+
+// Distributed Cache (Redis in production, Memory in development)
+if (builder.Environment.IsProduction())
+{
+    var redisConnection = builder.Configuration.GetConnectionString("Redis");
+    if (!string.IsNullOrEmpty(redisConnection))
+    {
+        builder.Services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnection;
+            options.InstanceName = "RestaurantApp:";
+        });
+    }
+    else
+    {
+        // Fallback to memory cache if Redis not configured
+        builder.Services.AddDistributedMemoryCache();
+    }
+}
+else
+{
+    // Use in-memory cache for development
+    builder.Services.AddDistributedMemoryCache();
+}
 
 // Add Infrastructure services (DbContext, Identity, Services)
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -177,9 +227,41 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<RestaurantApp.API.Services.IAdminNotificationService, RestaurantApp.API.Services.AdminNotificationService>();
 builder.Services.AddScoped<RestaurantApp.Application.Interfaces.IOrderNotificationService, RestaurantApp.API.Services.OrderNotificationService>();
 
-// Health Checks
+// Health Checks - Enhanced for production monitoring
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<RestaurantApp.Infrastructure.Data.ApplicationDbContext>();
+    .AddDbContextCheck<RestaurantApp.Infrastructure.Data.ApplicationDbContext>(
+        name: "database",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        tags: new[] { "db", "sql", "sqlserver" })
+    .AddSqlServer(
+        connectionString: builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "sql-server",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+        tags: new[] { "db", "sql", "sqlserver" })
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: new[] { "api" });
+
+
+// TODO: Add Redis health check when AspNetCore.HealthChecks.Redis package is installed
+// if (builder.Environment.IsProduction())
+// {
+//     var redisConnection = builder.Configuration.GetConnectionString("Redis");
+//     if (!string.IsNullOrEmpty(redisConnection))
+//     {
+//         builder.Services.AddHealthChecks()
+//             .AddRedis(redisConnection, name: "redis-cache", tags: new[] { "cache", "redis" });
+//     }
+// }
+
+// API Versioning
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = Asp.Versioning.ApiVersionReader.Combine(
+        new Asp.Versioning.QueryStringApiVersionReader("api-version"),
+        new Asp.Versioning.HeaderApiVersionReader("X-API-Version"));
+});
 
 var app = builder.Build();
 
@@ -203,6 +285,9 @@ if (app.Environment.IsDevelopment())
 // Request/Response logging for monitoring
 app.UseMiddleware<RestaurantApp.API.Middleware.RequestResponseLoggingMiddleware>();
 
+// Correlation ID for distributed tracing
+app.UseCorrelationId();
+
 // Global exception handling - must be early in pipeline
 app.UseMiddleware<RestaurantApp.API.Middleware.ExceptionHandlingMiddleware>();
 
@@ -223,8 +308,41 @@ app.MapControllers();
 // Map SignalR Hubs
 app.MapHub<OrderHub>("/hubs/orders");
 
-// Health Check Endpoints
-app.MapHealthChecks("/health");
+// Health Check Endpoints - Enhanced with detailed responses
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            timestamp = DateTime.UtcNow,
+            duration = report.TotalDuration,
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration,
+                exception = e.Value.Exception?.Message,
+                data = e.Value.Data
+            })
+        });
+        await context.Response.WriteAsync(result);
+    }
+});
+
+// Separate endpoints for Kubernetes-style health checks
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("cache")
+});
+
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("api")
+});
 
 // Seed initial data
 using (var scope = app.Services.CreateScope())

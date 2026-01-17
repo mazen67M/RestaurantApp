@@ -13,10 +13,14 @@ namespace RestaurantApp.API.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IResourceAuthorizationService _authService;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(
+        IOrderService orderService,
+        IResourceAuthorizationService authService)
     {
         _orderService = orderService;
+        _authService = authService;
     }
 
     [HttpPost]
@@ -43,6 +47,13 @@ public class OrdersController : ControllerBase
     public async Task<IActionResult> GetOrder(int id)
     {
         var userId = GetUserId();
+        
+        // IDOR Protection: Check if user can access this order
+        if (!await _authService.CanAccessOrderAsync(userId, id))
+        {
+            return Forbid();
+        }
+
         var result = await _orderService.GetOrderAsync(userId, id);
         if (!result.Success)
         {
@@ -106,11 +117,16 @@ public class AdminOrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly IDeliveryService _deliveryService;
+    private readonly IResourceAuthorizationService _authService;
 
-    public AdminOrdersController(IOrderService orderService, IDeliveryService deliveryService)
+    public AdminOrdersController(
+        IOrderService orderService,
+        IDeliveryService deliveryService,
+        IResourceAuthorizationService authService)
     {
         _orderService = orderService;
         _deliveryService = deliveryService;
+        _authService = authService;
     }
 
     [HttpGet]

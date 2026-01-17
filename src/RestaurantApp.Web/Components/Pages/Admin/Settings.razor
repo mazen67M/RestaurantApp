@@ -290,13 +290,13 @@
         // Basic Validation
         if (string.IsNullOrWhiteSpace(RestaurantData.NameEn) || string.IsNullOrWhiteSpace(RestaurantData.NameAr))
         {
-            ShowMessage("Restaurant name is required in both English and Arabic.", "error");
+            await ShowMessageAsync("Restaurant name is required in both English and Arabic.", "error");
             return;
         }
 
         if (!string.IsNullOrEmpty(RestaurantData.Email) && !RestaurantData.Email.Contains("@"))
         {
-            ShowMessage("Please enter a valid email address.", "error");
+            await ShowMessageAsync("Please enter a valid email address.", "error");
             return;
         }
 
@@ -323,16 +323,16 @@
             var success = await RestaurantApi.UpdateRestaurantAsync(request);
             if (success)
             {
-                ShowMessage("Settings saved successfully!", "success");
+                await ShowMessageAsync("Settings saved successfully!", "success");
             }
             else
             {
-                ShowMessage("Failed to save settings. Please try again.", "error");
+                await ShowMessageAsync("Failed to save settings. Please try again.", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -357,16 +357,16 @@
             {
                 if (type == "logo") RestaurantData.LogoUrl = imageUrl;
                 else RestaurantData.CoverImageUrl = imageUrl;
-                ShowMessage("Image uploaded successfully!", "success");
+                await ShowMessageAsync("Image uploaded successfully!", "success");
             }
             else
             {
-                ShowMessage("Upload failed.", "error");
+                await ShowMessageAsync("Upload failed.", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Upload error: {ex.Message}", "error");
+            await ShowMessageAsync($"Upload error: {ex.Message}", "error");
         }
         finally
         {
@@ -375,13 +375,21 @@
         }
     }
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = null;
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
+
 }

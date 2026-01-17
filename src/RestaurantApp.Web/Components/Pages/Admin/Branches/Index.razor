@@ -257,7 +257,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading branches: {ex.Message}");
-            ShowMessage($"Error loading branches: {ex.Message}", "error");
+            await ShowMessageAsync($"Error loading branches: {ex.Message}", "error");
             Branches = new List<RestaurantApp.Web.Services.BranchDto>();
         }
         finally
@@ -352,13 +352,13 @@
                 var success = await BranchApi.UpdateBranchAsync(EditingBranch.Id, updateRequest);
                 if (success)
                 {
-                    ShowMessage("Branch updated successfully!", "success");
+                    await ShowMessageAsync("Branch updated successfully!", "success");
                     CloseModal();
                     await LoadBranches();
                 }
                 else
                 {
-                    ShowMessage("Failed to update branch. Please try again.", "error");
+                    await ShowMessageAsync("Failed to update branch. Please try again.", "error");
                 }
             }
             else
@@ -387,20 +387,20 @@
                 var newBranch = await BranchApi.CreateBranchAsync(createRequest);
                 if (newBranch != null)
                 {
-                    ShowMessage("Branch created successfully!", "success");
+                    await ShowMessageAsync("Branch created successfully!", "success");
                     CloseModal();
                     await LoadBranches();
                 }
                 else
                 {
-                    ShowMessage("Failed to create branch. Please try again.", "error");
+                    await ShowMessageAsync("Failed to create branch. Please try again.", "error");
                 }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error saving branch: {ex.Message}");
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -422,18 +422,18 @@
             if (success)
             {
                 branch.IsActive = !branch.IsActive;
-                ShowMessage($"Branch {(branch.IsActive ? "opened" : "closed")} successfully!", "success");
+                await ShowMessageAsync($"Branch {(branch.IsActive ? "opened" : "closed")} successfully!", "success");
                 await LoadBranches();
             }
             else
             {
-                ShowMessage("Failed to update branch status.", "error");
+                await ShowMessageAsync("Failed to update branch status.", "error");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error toggling status: {ex.Message}");
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
     }
 
@@ -445,15 +445,23 @@
     private string? Message { get; set; }
     private string MessageType { get; set; } = "";
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
+
 
     private RestaurantApp.Web.Services.BranchDto EditingBranch { get; set; } = new();
 }

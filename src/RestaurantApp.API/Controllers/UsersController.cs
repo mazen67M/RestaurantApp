@@ -11,10 +11,14 @@ namespace RestaurantApp.API.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IResourceAuthorizationService _authService;
 
-    public UsersController(IUserService userService)
+    public UsersController(
+        IUserService userService,
+        IResourceAuthorizationService authService)
     {
         _userService = userService;
+        _authService = authService;
     }
 
     [HttpGet]
@@ -32,6 +36,14 @@ public class UsersController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetUser(int id)
     {
+        var currentUserId = GetUserId();
+        
+        // IDOR Protection: Check if user can access this user's data
+        if (!await _authService.CanAccessUserAsync(currentUserId, id))
+        {
+            return Forbid();
+        }
+
         var result = await _userService.GetUserByIdAsync(id);
         if (!result.Success)
         {
@@ -65,12 +77,26 @@ public class UsersController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeactivateUser(int id)
     {
+        var currentUserId = GetUserId();
+        
+        // IDOR Protection: Only SuperAdmin can deactivate users
+        if (!await _authService.IsSuperAdminAsync(currentUserId))
+        {
+            return Forbid();
+        }
+
         var result = await _userService.DeactivateUserAsync(id);
         if (!result.Success)
         {
             return NotFound(result);
         }
         return Ok(result);
+    }
+
+    private int GetUserId()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.Parse(userIdClaim!);
     }
 }
 

@@ -251,7 +251,7 @@
             Console.WriteLine($"Error loading loyalty data: {ex.Message}");
             Customers = new List<RestaurantApp.Web.Services.LoyaltyCustomerDto>();
             Tiers = new List<RestaurantApp.Web.Services.LoyaltyTierDto>();
-            ShowMessageNotification($"Error loading loyalty data: {ex.Message}", "error");
+            await ShowMessageNotificationAsync($"Error loading loyalty data: {ex.Message}", "error");
         }
         finally
         {
@@ -276,9 +276,9 @@
         ShowModal = true;
     }
 
-    private void ViewHistory(RestaurantApp.Web.Services.LoyaltyCustomerDto customer)
+    private async Task ViewHistory(RestaurantApp.Web.Services.LoyaltyCustomerDto customer)
     {
-        ShowMessageNotification($"Showing history for {customer.Name}", "success");
+        await ShowMessageNotificationAsync($"Showing history for {customer.Name}", "success");
     }
 
     private void CloseModal()
@@ -290,13 +290,13 @@
     {
         if (string.IsNullOrEmpty(SelectedCustomerId))
         {
-            ShowMessageNotification("Please select a customer", "error");
+            await ShowMessageNotificationAsync("Please select a customer", "error");
             return;
         }
 
         if (AwardPoints <= 0)
         {
-            ShowMessageNotification("Points must be greater than 0", "error");
+            await ShowMessageNotificationAsync("Points must be greater than 0", "error");
             return;
         }
 
@@ -314,12 +314,12 @@
                 customer.TotalEarned += AwardPoints;
             }
 
-            ShowMessageNotification($"Awarded {AwardPoints} points to {customer?.Name}!", "success");
+            await ShowMessageNotificationAsync($"Awarded {AwardPoints} points to {customer?.Name}!", "success");
             CloseModal();
         }
         catch (Exception ex)
         {
-            ShowMessageNotification($"Error: {ex.Message}", "error");
+            await ShowMessageNotificationAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -335,13 +335,20 @@
         _ => "🥉"
     };
 
-    private async void ShowMessageNotification(string message, string type)
+    private async Task ShowMessageNotificationAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
 }

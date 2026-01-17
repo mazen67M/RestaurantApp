@@ -206,7 +206,7 @@
         {
             Console.WriteLine($"Error loading reviews: {ex.Message}");
             Reviews = new List<RestaurantApp.Web.Services.ReviewModerationDto>();
-            ShowMessage($"Error loading reviews: {ex.Message}", "error");
+            await ShowMessageAsync($"Error loading reviews: {ex.Message}", "error");
         }
         finally
         {
@@ -218,7 +218,7 @@
     private async Task RefreshData()
     {
         await LoadData();
-        ShowMessage("Reviews refreshed!", "success");
+        await ShowMessageAsync("Reviews refreshed!", "success");
     }
 
     private void SetTab(string tab)
@@ -239,7 +239,7 @@
                 {
                     review.IsApproved = true;
                 }
-                ShowMessage("Review approved! Now visible to customers.", "success");
+                await ShowMessageAsync("Review approved! Now visible to customers.", "success");
             }
             else
             {
@@ -249,12 +249,12 @@
                 {
                     review.IsApproved = true;
                 }
-                ShowMessage("Review approved!", "success");
+                await ShowMessageAsync("Review approved!", "success");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -274,11 +274,11 @@
                 review.IsApproved = false;
                 review.IsVisible = false;
             }
-            ShowMessage("Review rejected and hidden.", "success");
+            await ShowMessageAsync("Review rejected and hidden.", "success");
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -296,12 +296,12 @@
             if (review != null)
             {
                 review.IsVisible = !review.IsVisible;
-                ShowMessage($"Review is now {(review.IsVisible ? "visible" : "hidden")}.", "success");
+                await ShowMessageAsync($"Review is now {(review.IsVisible ? "visible" : "hidden")}.", "success");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -309,13 +309,20 @@
         }
     }
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
 }

@@ -279,7 +279,7 @@
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error loading data: {ex.Message}", "error");
+            await ShowMessageAsync($"Error loading data: {ex.Message}", "error");
         }
         finally
         {
@@ -290,7 +290,7 @@
     private async Task RefreshData()
     {
         await LoadData();
-        ShowMessage("Data refreshed from database!", "success");
+        await ShowMessageAsync("Data refreshed from database!", "success");
     }
 
     private void ShowAddModal()
@@ -340,7 +340,7 @@
         // Limit size to 2MB
         if (file.Size > 2 * 1024 * 1024)
         {
-            ShowMessage("File size exceeded 2MB limit", "error");
+            await ShowMessageAsync("File size exceeded 2MB limit", "error");
             return;
         }
 
@@ -353,16 +353,16 @@
             if (!string.IsNullOrEmpty(imageUrl))
             {
                 EditingItem.ImageUrl = imageUrl;
-                ShowMessage("Image uploaded successfully!", "success");
+                await ShowMessageAsync("Image uploaded successfully!", "success");
             }
             else
             {
-                ShowMessage("Upload failed. Verify server settings.", "error");
+                await ShowMessageAsync("Upload failed. Verify server settings.", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Upload error: {ex.Message}", "error");
+            await ShowMessageAsync($"Upload error: {ex.Message}", "error");
         }
         finally
         {
@@ -389,16 +389,16 @@
             {
                 await LoadData(); // Refresh from API
                 CloseModal();
-                ShowMessage(IsEditing ? "Menu item updated! Changes synced to mobile app." : "Menu item created! Now visible in mobile app.", "success");
+                await ShowMessageAsync(IsEditing ? "Menu item updated! Changes synced to mobile app." : "Menu item created! Now visible in mobile app.", "success");
             }
             else
             {
-                ShowMessage("Failed to save. Please try again.", "error");
+                await ShowMessageAsync("Failed to save. Please try again.", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
         finally
         {
@@ -414,13 +414,13 @@
             if (success)
             {
                 item.IsAvailable = !item.IsAvailable;
-                ShowMessage($"{item.NameEn} is now {(item.IsAvailable ? "available" : "unavailable")}. Mobile app updated!", "success");
+                await ShowMessageAsync($"{item.NameEn} is now {(item.IsAvailable ? "available" : "unavailable")}. Mobile app updated!", "success");
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
     }
 
@@ -439,23 +439,31 @@
             if (success)
             {
                 await LoadData();
-                ShowMessage("Item deleted. Removed from mobile app.", "success");
+                await ShowMessageAsync("Item deleted. Removed from mobile app.", "success");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error: {ex.Message}", "error");
+            await ShowMessageAsync($"Error: {ex.Message}", "error");
         }
     }
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
+
 }

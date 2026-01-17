@@ -393,7 +393,7 @@
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error loading orders: {ex.Message}. Please check your connection and try again.", "error");
+            await ShowMessageAsync($"Error loading orders: {ex.Message}. Please check your connection and try again.", "error");
             Orders = new List<OrderDto>();
             TotalOrders = 0;
         }
@@ -450,7 +450,7 @@
     private async Task RefreshOrders()
     {
         await LoadData();
-        ShowMessage("Orders refreshed from database!", "success");
+        await ShowMessageAsync("Orders refreshed from database!", "success");
     }
 
     private void ViewOrder(int orderId)
@@ -477,12 +477,12 @@
                     var order = Orders.FirstOrDefault(o => o.Id == SelectedOrder.Id);
                     if (order != null) order.Status = status;
                     
-                    ShowMessage($"Order #{SelectedOrder.OrderNumber} is now {status}. Customer notified via app!", "success");
+                    await ShowMessageAsync($"Order #{SelectedOrder.OrderNumber} is now {status}. Customer notified via app!", "success");
                     StateHasChanged();
                 }
                 else
                 {
-                    ShowMessage("Failed to update status. Please try again.", "error");
+                    await ShowMessageAsync("Failed to update status. Please try again.", "error");
                 }
             }
             catch (Exception)
@@ -491,7 +491,7 @@
                 SelectedOrder.Status = status;
                 var order = Orders.FirstOrDefault(o => o.Id == SelectedOrder.Id);
                 if (order != null) order.Status = status;
-                ShowMessage($"Status updated locally. Sync may be delayed.", "success");
+                await ShowMessageAsync($"Status updated locally. Sync may be delayed.", "success");
             }
         }
     }
@@ -518,15 +518,23 @@
         }
     }
 
-    private async void ShowMessage(string message, string type)
+    private async Task ShowMessageAsync(string message, string type)
     {
-        Message = message;
-        MessageType = type;
-        StateHasChanged();
-        await Task.Delay(3000);
-        Message = "";
-        StateHasChanged();
+        try
+        {
+            Message = message;
+            MessageType = type;
+            StateHasChanged();
+            await Task.Delay(3000);
+            Message = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing message: {ex.Message}");
+        }
     }
+
 
     private class OrderDto
     {
@@ -568,7 +576,7 @@
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error loading deliveries: {ex.Message}", "error");
+            await ShowMessageAsync($"Error loading deliveries: {ex.Message}", "error");
         }
     }
 
@@ -583,7 +591,7 @@
     {
         if (!AssignOrderId.HasValue || !SelectedDeliveryId.HasValue)
         {
-            ShowMessage("Please select a delivery driver", "error");
+            await ShowMessageAsync("Please select a delivery driver", "error");
             return;
         }
 
@@ -592,18 +600,18 @@
             var success = await DeliveryApi.AssignDeliveryToOrderAsync(AssignOrderId.Value, SelectedDeliveryId.Value);
             if (success)
             {
-                ShowMessage("Delivery assigned successfully!", "success");
+                await ShowMessageAsync("Delivery assigned successfully!", "success");
                 CloseAssignModal();
                 await LoadData();
             }
             else
             {
-                ShowMessage("Failed to assign delivery", "error");
+                await ShowMessageAsync("Failed to assign delivery", "error");
             }
         }
         catch (Exception ex)
         {
-            ShowMessage($"Error assigning delivery: {ex.Message}", "error");
+            await ShowMessageAsync($"Error assigning delivery: {ex.Message}", "error");
         }
     }
 }

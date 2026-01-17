@@ -59,6 +59,12 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IOfferService, OfferService>();
+        
+        // Security Services
+        services.AddScoped<IResourceAuthorizationService, ResourceAuthorizationService>();
+        
+        // Performance Services
+        services.AddScoped<ICacheService, CacheService>();
 
 
         return services;

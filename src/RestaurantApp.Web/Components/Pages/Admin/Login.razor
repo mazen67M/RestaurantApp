@@ -69,7 +69,9 @@
         </EditForm>
  
         <div class="login-footer">
+#if DEBUG
             <p class="text-muted">For demo: admin@restaurant.com / Admin@123</p>
+#endif
         </div>
     </div>
 </div>
@@ -201,6 +203,7 @@
 @code {
     [SupplyParameterFromForm]
     private LoginDto Model { get; set; } = new();
+    
     private bool IsLoading { get; set; } = false;
     private string? ErrorMessage { get; set; }
  
