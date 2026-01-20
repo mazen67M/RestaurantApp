@@ -20,7 +20,8 @@ public record OrderDto(
     DateTime? EstimatedDeliveryTime,
     DateTime CreatedAt,
     BranchOrderInfo Branch,
-    List<OrderItemDto> Items
+    List<OrderItemDto> Items,
+    string? DeliveryName = null
 );
 
 public record BranchOrderInfo(
@@ -50,6 +51,19 @@ public record OrderItemAddOnDto(
     decimal Price
 );
 
+public record OrderItemSummaryDto(
+    string MenuItemNameAr,
+    string MenuItemNameEn,
+    int Quantity,
+    string? Notes,
+    List<OrderItemAddOnSummaryDto> AddOns
+);
+
+public record OrderItemAddOnSummaryDto(
+    string NameAr,
+    string NameEn
+);
+
 public record OrderSummaryDto(
     int Id,
     string OrderNumber,
@@ -60,7 +74,9 @@ public record OrderSummaryDto(
     string BranchNameAr,
     string BranchNameEn,
     string CustomerName,
-    string CustomerPhone
+    string CustomerPhone,
+    string? DeliveryName = null,
+    List<OrderItemSummaryDto>? Items = null
 );
 
 public record OrderTrackingDto(

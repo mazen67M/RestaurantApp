@@ -26,24 +26,62 @@ public static class DbInitializer
 
         // Seed admin user
         var adminEmail = "admin@restaurant.com";
+        var adminPassword = "AdminSecure@123";
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
+        
         if (adminUser == null)
         {
+            Console.WriteLine("[DbInitializer] Creating new admin user...");
             adminUser = new ApplicationUser
             {
                 UserName = adminEmail,
                 Email = adminEmail,
                 FullName = "System Admin",
                 EmailConfirmed = true,
+                IsActive = true,
                 PreferredLanguage = "en"
             };
-            await userManager.CreateAsync(adminUser, "Admin@123");
+            var createResult = await userManager.CreateAsync(adminUser, adminPassword);
+            Console.WriteLine($"[DbInitializer] Admin create result: {createResult.Succeeded}");
+            if (!createResult.Succeeded)
+            {
+                foreach (var error in createResult.Errors)
+                {
+                    Console.WriteLine($"[DbInitializer] Error: {error.Description}");
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine("[DbInitializer] Updating existing admin user...");
+            // Force update password and ensure email is confirmed
+            var hasPassword = await userManager.HasPasswordAsync(adminUser);
+            if (hasPassword)
+            {
+                var removeResult = await userManager.RemovePasswordAsync(adminUser);
+                Console.WriteLine($"[DbInitializer] Remove password result: {removeResult.Succeeded}");
+            }
+            var addResult = await userManager.AddPasswordAsync(adminUser, adminPassword);
+            Console.WriteLine($"[DbInitializer] Add password result: {addResult.Succeeded}");
+            if (!addResult.Succeeded)
+            {
+                foreach (var error in addResult.Errors)
+                {
+                    Console.WriteLine($"[DbInitializer] Error: {error.Description}");
+                }
+            }
+            
+            adminUser.EmailConfirmed = true;
+            adminUser.IsActive = true;
+            await userManager.UpdateAsync(adminUser);
+            Console.WriteLine("[DbInitializer] Admin user updated successfully");
         }
         
-        // Ensure admin role is assigned (even if user existed)
+        // Ensure admin role is assigned
         if (!await userManager.IsInRoleAsync(adminUser!, "Admin"))
         {
             await userManager.AddToRoleAsync(adminUser!, "Admin");
+            Console.WriteLine("[DbInitializer] Admin role assigned");
         }
 
         // Seed restaurant if not exists

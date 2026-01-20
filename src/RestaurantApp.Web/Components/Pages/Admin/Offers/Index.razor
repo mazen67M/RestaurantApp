@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin")]
 @inject RestaurantApp.Web.Services.OfferApiService OfferApi
+@inject IJSRuntime JS
 
 <PageTitle>Offers & Coupons - Restaurant Admin</PageTitle>
 
@@ -397,6 +398,13 @@
 
     private async Task DeleteOffer(int id)
     {
+        var offer = Offers.FirstOrDefault(o => o.Id == id);
+        if (offer != null)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete offer '{offer.Code}'? This action cannot be undone.");
+            if (!confirmed) return;
+        }
+
         try
         {
             var success = await OfferApi.DeleteOfferAsync(id);

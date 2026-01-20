@@ -190,7 +190,7 @@
                     <div class="col-12">
                         <div class="form-group mb-3">
                             <label class="form-label">Password</label>
-                            <input type="password" class="form-control" @bind="NewUserPassword" placeholder="Minimum 6 characters" />
+                            <input type="password" class="form-control" @bind="NewUserPassword" placeholder="Minimum 12 characters" />
                         </div>
                     </div>
                 </div>
@@ -314,9 +314,9 @@
             return;
         }
 
-        if (!IsEditing && (string.IsNullOrWhiteSpace(NewUserPassword) || NewUserPassword.Length < 6))
+        if (!IsEditing && (string.IsNullOrWhiteSpace(NewUserPassword) || NewUserPassword.Length < 12))
         {
-            await ShowMessageAsync("Password must be at least 6 characters", "error");
+            await ShowMessageAsync("Password must be at least 12 characters", "error");
             return;
         }
 
@@ -378,6 +378,12 @@
     {
         try
         {
+            if (user.IsActive)
+            {
+                var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to deactivate user '{user.FullName}'? They will no longer be able to log in.");
+                if (!confirmed) return;
+            }
+            
             var request = new RestaurantApp.Web.Services.UpdateUserRequest
             {
                 IsActive = !user.IsActive

@@ -53,6 +53,7 @@ builder.Services.AddScoped<RestaurantApp.Web.Services.ReportApiService>();
 builder.Services.AddScoped<RestaurantApp.Web.Services.RestaurantApiService>();
 builder.Services.AddScoped<RestaurantApp.Web.Services.MediaApiService>();
 builder.Services.AddScoped<RestaurantApp.Web.Services.NotificationService>();
+builder.Services.AddScoped<RestaurantApp.Web.Services.SidebarService>();
 
 
 // Add authentication
@@ -114,8 +115,27 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-app.MapGet("/admin/logout", async (HttpContext httpContext) =>
+app.MapPost("/admin/logout", async (HttpContext httpContext) =>
 {
+    try
+    {
+        // SECURITY: Call API to blacklist the JWT token
+        var token = httpContext.User.FindFirst("AuthToken")?.Value;
+        if (!string.IsNullOrEmpty(token))
+        {
+            var clientFactory = httpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+            var client = clientFactory.CreateClient("RestaurantAPI");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            
+            // We fire and forget or wait briefly - don't block logout if API is down
+            await client.PostAsync("/api/auth/logout", null);
+        }
+    }
+    catch (Exception)
+    {
+        // Log error but proceed with cookie signout
+    }
+
     await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/admin/login");
 });

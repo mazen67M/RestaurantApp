@@ -17,17 +17,20 @@ public class AuthService : IAuthService
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
+    private readonly ITokenBlacklistService _blacklistService;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration configuration,
-        IEmailService emailService)
+        IEmailService emailService,
+        ITokenBlacklistService blacklistService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _configuration = configuration;
         _emailService = emailService;
+        _blacklistService = blacklistService;
     }
 
     public async Task<ApiResponse<AuthResponseDto>> RegisterAsync(RegisterDto dto)
@@ -70,26 +73,48 @@ public class AuthService : IAuthService
 
     public async Task<ApiResponse<AuthResponseDto>> LoginAsync(LoginDto dto)
     {
+        Console.WriteLine($"[AuthService] Login attempt for: {dto.Email}");
+        
         var user = await _userManager.FindByEmailAsync(dto.Email);
-        if (user == null || !user.IsActive)
+        if (user == null)
         {
+            Console.WriteLine("[AuthService] User not found");
+            return ApiResponse<AuthResponseDto>.ErrorResponse("Invalid email or password");
+        }
+        
+        Console.WriteLine($"[AuthService] User found - IsActive: {user.IsActive}, EmailConfirmed: {user.EmailConfirmed}");
+        
+        if (!user.IsActive)
+        {
+            Console.WriteLine("[AuthService] User is not active");
             return ApiResponse<AuthResponseDto>.ErrorResponse("Invalid email or password");
         }
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
-        if (!result.Succeeded)
+        // Check if account is locked out
+        if (await _userManager.IsLockedOutAsync(user))
         {
-            if (result.IsLockedOut)
-            {
-                return ApiResponse<AuthResponseDto>.ErrorResponse("Account locked. Please try again later.");
-            }
+            return ApiResponse<AuthResponseDto>.ErrorResponse("Account locked. Please try again later.");
+        }
+
+        // Use CheckPasswordAsync to avoid email confirmation requirement from SignInManager
+        var passwordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
+        Console.WriteLine($"[AuthService] Password valid: {passwordValid}");
+        
+        if (!passwordValid)
+        {
+            // Increment failed access count for lockout
+            await _userManager.AccessFailedAsync(user);
             return ApiResponse<AuthResponseDto>.ErrorResponse("Invalid email or password");
         }
 
+        // Reset failed access count on successful login
+        await _userManager.ResetAccessFailedCountAsync(user);
+        
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
         var authResponse = await GenerateAuthResponse(user);
+        Console.WriteLine("[AuthService] Login successful");
         return ApiResponse<AuthResponseDto>.SuccessResponse(authResponse);
     }
 
@@ -209,6 +234,30 @@ public class AuthService : IAuthService
         }
 
         return ApiResponse.SuccessResponse("Password reset successfully");
+    }
+
+    public async Task<ApiResponse> LogoutAsync(string token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return ApiResponse.ErrorResponse("Token is required");
+
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+            var expiry = jwtToken.ValidTo - DateTime.UtcNow;
+
+            if (expiry > TimeSpan.Zero)
+            {
+                await _blacklistService.BlacklistTokenAsync(token, expiry);
+            }
+
+            return ApiResponse.SuccessResponse("Logged out successfully");
+        }
+        catch (Exception)
+        {
+            return ApiResponse.ErrorResponse("Invalid token");
+        }
     }
 
     private async Task<AuthResponseDto> GenerateAuthResponse(ApplicationUser user)

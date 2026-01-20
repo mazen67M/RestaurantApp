@@ -1,10 +1,12 @@
 @inherits LayoutComponentBase
 @inject RestaurantApp.Web.Services.NotificationService NotificationService
+@inject RestaurantApp.Web.Services.SidebarService SidebarService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
 <div id="admin-root" class="admin-container">
     <AdminSidebar />
+    <div class="sidebar-overlay @(SidebarService.IsSidebarOpen ? "active" : "")" @onclick="SidebarService.CloseMobile"></div>
 
     <div class="main-wrapper">
         <AdminTopNavbar />
@@ -36,11 +38,13 @@
     protected override void OnInitialized()
     {
         NotificationService.OnChange += StateHasChanged;
+        SidebarService.OnChange += StateHasChanged;
     }
 
     public void Dispose()
     {
         NotificationService.OnChange -= StateHasChanged;
+        SidebarService.OnChange -= StateHasChanged;
     }
 }
 

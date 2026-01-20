@@ -8,7 +8,7 @@ public record RegisterDto(
     string Email,
     
     [Required(ErrorMessage = "Password is required")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters long")]
     string Password,
     
     [Required(ErrorMessage = "Full name is required")]
@@ -80,7 +80,7 @@ public record ResetPasswordDto(
     string Token,
     
     [Required(ErrorMessage = "New password is required")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters long")]
     string NewPassword
 );
 
@@ -89,7 +89,7 @@ public record ChangePasswordDto(
     string CurrentPassword,
     
     [Required(ErrorMessage = "New password is required")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters long")]
     string NewPassword
 );
 

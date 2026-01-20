@@ -65,6 +65,9 @@ public static class DependencyInjection
         
         // Performance Services
         services.AddScoped<ICacheService, CacheService>();
+        
+        // Security: Token Blacklist
+        services.AddScoped<ITokenBlacklistService, TokenBlacklistService>();
 
 
         return services;

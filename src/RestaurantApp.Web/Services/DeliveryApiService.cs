@@ -1,21 +1,20 @@
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace RestaurantApp.Web.Services;
 
-public class DeliveryApiService
+public class DeliveryApiService : BaseApiService
 {
-    private readonly HttpClient _httpClient;
-
-    public DeliveryApiService(HttpClient httpClient)
+    public DeliveryApiService(HttpClient httpClient, AuthenticationStateProvider authProvider) 
+        : base(httpClient, authProvider)
     {
-        _httpClient = httpClient;
     }
 
     public async Task<List<DeliveryDto>> GetAllDeliveriesAsync()
     {
         try
         {
-            var response = await _httpClient.GetAsync("/api/deliveries");
+            var response = await HttpClient.GetAsync("/api/deliveries");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse<List<DeliveryDto>>>();
@@ -33,7 +32,8 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.GetAsync("/api/deliveries/available");
+            await EnsureAuthHeaderAsync();
+            var response = await HttpClient.GetAsync("/api/deliveries/available");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse<List<DeliveryDto>>>();
@@ -51,7 +51,7 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/deliveries/{id}");
+            var response = await HttpClient.GetAsync($"/api/deliveries/{id}");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse<DeliveryDto>>();
@@ -69,7 +69,7 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/deliveries", dto);
+            var response = await HttpClient.PostAsJsonAsync("/api/deliveries", dto);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -83,7 +83,7 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"/api/deliveries/{id}", dto);
+            var response = await HttpClient.PutAsJsonAsync($"/api/deliveries/{id}", dto);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -97,7 +97,7 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"/api/deliveries/{id}");
+            var response = await HttpClient.DeleteAsync($"/api/deliveries/{id}");
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -111,7 +111,7 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync($"/api/deliveries/{id}/availability", isAvailable);
+            var response = await HttpClient.PostAsJsonAsync($"/api/deliveries/{id}/availability", isAvailable);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -130,7 +130,7 @@ public class DeliveryApiService
             if (endDate.HasValue) query.Add($"endDate={endDate:yyyy-MM-dd}");
             var queryString = query.Any() ? "?" + string.Join("&", query) : "";
 
-            var response = await _httpClient.GetAsync($"/api/deliveries/{id}/stats{queryString}");
+            var response = await HttpClient.GetAsync($"/api/deliveries/{id}/stats{queryString}");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse<DeliveryStatsDto>>();
@@ -153,7 +153,7 @@ public class DeliveryApiService
             if (endDate.HasValue) query.Add($"endDate={endDate:yyyy-MM-dd}");
             var queryString = query.Any() ? "?" + string.Join("&", query) : "";
 
-            var response = await _httpClient.GetAsync($"/api/deliveries/stats{queryString}");
+            var response = await HttpClient.GetAsync($"/api/deliveries/stats{queryString}");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse<List<DeliveryStatsDto>>>();
@@ -171,7 +171,11 @@ public class DeliveryApiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync($"/api/admin/orders/{orderId}/assign-delivery", new { DeliveryId = deliveryId });
+            await EnsureAuthHeaderAsync();
+            Console.WriteLine($"Assigning delivery {deliveryId} to order {orderId}");
+            var response = await HttpClient.PostAsJsonAsync($"/api/admin/orders/{orderId}/assign-delivery", new { DeliveryId = deliveryId });
+            var body = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Assign response: {response.StatusCode} - {body}");
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)

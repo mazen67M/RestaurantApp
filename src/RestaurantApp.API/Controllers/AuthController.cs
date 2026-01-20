@@ -8,6 +8,7 @@ namespace RestaurantApp.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthPolicy")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -104,6 +105,22 @@ public class AuthController : ControllerBase
         {
             return BadRequest(result);
         }
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        var authHeader = Request.Headers["Authorization"].ToString();
+        if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { success = false, message = "Invalid token" });
+        }
+
+        var token = authHeader.Substring("Bearer ".Length).Trim();
+        var result = await _authService.LogoutAsync(token);
+        
         return Ok(result);
     }
 

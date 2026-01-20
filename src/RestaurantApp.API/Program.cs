@@ -12,6 +12,8 @@ using Serilog;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using RestaurantApp.API.Middleware;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 
 // CRITICAL: Clear default claim type mappings to prevent JWT handler from transforming claims
@@ -29,7 +31,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 // Add services to the container
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 
 // Add FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<RestaurantApp.Application.Validators.Order.CreateOrderDtoValidator>();
@@ -218,12 +224,33 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 2,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
+
+    options.AddFixedWindowLimiter("AuthPolicy", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
             
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 // SignalR for real-time updates
-builder.Services.AddSignalR();
+var signalRBuilder = builder.Services.AddSignalR();
+
+// Use Redis backplane in production for horizontal scaling
+if (builder.Environment.IsProduction())
+{
+    var redisConnection = builder.Configuration.GetConnectionString("Redis");
+    if (!string.IsNullOrEmpty(redisConnection))
+    {
+        signalRBuilder.AddStackExchangeRedis(redisConnection, options =>
+        {
+            options.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("RestaurantApp");
+        });
+    }
+}
+
 builder.Services.AddScoped<RestaurantApp.API.Services.IAdminNotificationService, RestaurantApp.API.Services.AdminNotificationService>();
 builder.Services.AddScoped<RestaurantApp.Application.Interfaces.IOrderNotificationService, RestaurantApp.API.Services.OrderNotificationService>();
 
@@ -238,7 +265,18 @@ builder.Services.AddHealthChecks()
         name: "sql-server",
         failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
         tags: new[] { "db", "sql", "sqlserver" })
-    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: new[] { "api" });
+    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(
+        $"API running. Uptime: {DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime():g}"), 
+        tags: new[] { "api" })
+    .AddCheck("memory", () =>
+    {
+        var allocated = GC.GetTotalMemory(false);
+        var threshold = 1024L * 1024L * 1024L; // 1GB threshold
+        
+        return allocated < threshold
+            ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy($"Memory: {allocated / 1024 / 1024}MB")
+            : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Degraded($"High memory usage: {allocated / 1024 / 1024}MB");
+    }, tags: new[] { "api", "memory" });
 
 
 // TODO: Add Redis health check when AspNetCore.HealthChecks.Redis package is installed
@@ -251,6 +289,28 @@ builder.Services.AddHealthChecks()
 //             .AddRedis(redisConnection, name: "redis-cache", tags: new[] { "cache", "redis" });
 //     }
 // }
+
+// OpenTelemetry Distributed Tracing
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: "RestaurantApp.API", serviceVersion: "1.0.0"))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options =>
+        {
+            options.RecordException = true;
+            options.Filter = (httpContext) =>
+            {
+                // Exclude health check endpoints from tracing
+                return !httpContext.Request.Path.StartsWithSegments("/health");
+            };
+        })
+        .AddHttpClientInstrumentation()
+        .AddSqlClientInstrumentation(options =>
+        {
+            options.SetDbStatementForText = true;
+            options.RecordException = true;
+        }));
+        // .AddConsoleExporter()); // Disabled for cleaner logs - Use OTLP exporter in production
 
 // API Versioning
 builder.Services.AddApiVersioning(options =>
@@ -301,6 +361,7 @@ app.UseCors(corsPolicy);
 app.UseRateLimiter();
 
 app.UseAuthentication();
+app.UseTokenBlacklist();
 app.UseAuthorization();
 
 app.MapControllers();

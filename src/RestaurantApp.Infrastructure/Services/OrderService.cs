@@ -33,12 +33,17 @@ public class OrderService : IOrderService
 
     public async Task<ApiResponse<OrderCreatedDto>> CreateOrderAsync(int userId, CreateOrderDto dto)
     {
-        // Validate branch
-        var branch = await _context.Branches.FindAsync(dto.BranchId);
-        if (branch == null || !branch.IsActive || !branch.AcceptingOrders)
+        // Start explicit transaction for data consistency
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        
+        try
         {
-            return ApiResponse<OrderCreatedDto>.ErrorResponse("Branch not available");
-        }
+            // Validate branch
+            var branch = await _context.Branches.FindAsync(dto.BranchId);
+            if (branch == null || !branch.IsActive || !branch.AcceptingOrders)
+            {
+                return ApiResponse<OrderCreatedDto>.ErrorResponse("Branch not available");
+            }
 
         // Get menu items
         var menuItemIds = dto.Items.Select(i => i.MenuItemId).ToList();
@@ -222,12 +227,25 @@ public class OrderService : IOrderService
 
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
+        
+        // Commit transaction before external calls
+        await transaction.CommitAsync();
 
-        // Send confirmation email
+        // Send confirmation email (fire and forget - outside transaction)
         var user = await _context.Users.FindAsync(userId);
         if (user?.Email != null)
         {
-            await _emailService.SendOrderConfirmationAsync(user.Email, order.OrderNumber, order.Total);
+            _ = Task.Run(async () => 
+            {
+                try
+                {
+                    await _emailService.SendOrderConfirmationAsync(user.Email, order.OrderNumber, order.Total);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
+                }
+            });
         }
         // Send real-time notification to Admin Dashboard
         await _notificationService.NotifyNewOrder(
@@ -244,11 +262,19 @@ public class OrderService : IOrderService
             order.Total,
             order.EstimatedDeliveryTime.Value
         ));
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Error creating order for user {UserId}", userId);
+            return ApiResponse<OrderCreatedDto>.ErrorResponse("Failed to create order. Please try again.");
+        }
     }
 
     public async Task<ApiResponse<List<OrderSummaryDto>>> GetUserOrdersAsync(int userId, int page = 1, int pageSize = 10)
     {
         var orders = await _context.Orders
+            .AsNoTracking()
             .Include(o => o.OrderItems)
             .Include(o => o.Branch)
             .Include(o => o.User)
@@ -277,6 +303,7 @@ public class OrderService : IOrderService
     public async Task<ApiResponse<OrderDto>> GetOrderAsync(int userId, int orderId)
     {
         var order = await _context.Orders
+            .AsNoTracking()
             .Include(o => o.Branch)
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.OrderItemAddOns)
@@ -293,6 +320,7 @@ public class OrderService : IOrderService
     public async Task<ApiResponse<OrderTrackingDto>> GetOrderTrackingAsync(int userId, int orderId)
     {
         var order = await _context.Orders
+            .AsNoTracking()
             .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
 
         if (order == null)
@@ -302,6 +330,7 @@ public class OrderService : IOrderService
 
         // Get real status history from database
         var historyRecords = await _context.OrderStatusHistories
+            .AsNoTracking()
             .Where(h => h.OrderId == orderId)
             .OrderBy(h => h.CreatedAt)
             .ToListAsync();
@@ -351,36 +380,37 @@ public class OrderService : IOrderService
     public async Task<ApiResponse<OrderCreatedDto>> ReorderAsync(int userId, int orderId)
     {
         // Get the original order
-        var originalOrder = await _context.Orders
+        var order = await _context.Orders
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.OrderItemAddOns)
             .Include(o => o.Branch)
+            .Include(o => o.Delivery)
             .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
 
-        if (originalOrder == null)
+        if (order == null)
         {
             return ApiResponse<OrderCreatedDto>.ErrorResponse("Order not found");
         }
 
         // Only allow reordering of delivered orders
-        if (originalOrder.Status != OrderStatus.Delivered)
+        if (order.Status != OrderStatus.Delivered)
         {
             return ApiResponse<OrderCreatedDto>.ErrorResponse("Can only reorder delivered orders");
         }
 
         // Create DTO from original order
         var createOrderDto = new CreateOrderDto(
-            originalOrder.BranchId,
-            originalOrder.OrderType,
+            order.BranchId,
+            order.OrderType,
             null, // AddressId
-            originalOrder.DeliveryAddressLine,
-            originalOrder.DeliveryLatitude,
-            originalOrder.DeliveryLongitude,
+            order.DeliveryAddressLine,
+            order.DeliveryLatitude,
+            order.DeliveryLongitude,
             null, // DeliveryNotes
             null, // RequestedDeliveryTime
             null, // CustomerNotes
             null, // CouponCode - don't reuse coupon
-            originalOrder.OrderItems.Select(item => new CreateOrderItemDto(
+            order.OrderItems.Select(item => new CreateOrderItemDto(
                 item.MenuItemId,
                 item.Quantity,
                 item.Notes,
@@ -402,9 +432,12 @@ public class OrderService : IOrderService
         int pageSize = 20)
     {
         var query = _context.Orders
+            .AsNoTracking()
             .Include(o => o.OrderItems)
+                .ThenInclude(i => i.OrderItemAddOns)
             .Include(o => o.Branch)
             .Include(o => o.User)
+            .Include(o => o.Delivery)
             .AsQueryable();
 
         if (branchId.HasValue)
@@ -422,7 +455,7 @@ public class OrderService : IOrderService
             .OrderByDescending(o => o.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
+             .ToListAsync();
 
         var dtos = orders.Select(o => new OrderSummaryDto(
             o.Id,
@@ -434,7 +467,15 @@ public class OrderService : IOrderService
             o.Branch.NameAr,
             o.Branch.NameEn,
             o.User.FullName,
-            o.User.PhoneNumber ?? ""
+            o.User.PhoneNumber ?? "",
+            o.Delivery?.NameEn,
+            o.OrderItems.Select(i => new OrderItemSummaryDto(
+                i.MenuItemNameAr,
+                i.MenuItemNameEn,
+                i.Quantity,
+                i.Notes,
+                i.OrderItemAddOns.Select(a => new OrderItemAddOnSummaryDto(a.NameAr, a.NameEn)).ToList()
+            )).ToList()
         )).ToList();
 
         return ApiResponse<PagedResponse<OrderSummaryDto>>.SuccessResponse(new PagedResponse<OrderSummaryDto>
@@ -449,7 +490,9 @@ public class OrderService : IOrderService
     public async Task<ApiResponse<OrderDto>> GetOrderDetailsAsync(int orderId)
     {
         var order = await _context.Orders
+            .AsNoTracking()
             .Include(o => o.Branch)
+            .Include(o => o.Delivery)
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.OrderItemAddOns)
             .FirstOrDefaultAsync(o => o.Id == orderId);
@@ -471,7 +514,7 @@ public class OrderService : IOrderService
         }
 
         var previousStatus = order.Status;
-        
+
         // Only record history if status actually changed
         if (previousStatus != newStatus)
         {
@@ -484,44 +527,64 @@ public class OrderService : IOrderService
                 ChangedBy = "Admin", // TODO: Get actual user from HttpContext
                 Notes = null
             };
-            
+
             _context.OrderStatusHistories.Add(statusHistory);
-            
+
             // Update order status
             order.Status = newStatus;
-            
+
             if (newStatus == OrderStatus.Delivered)
             {
                 order.ActualDeliveryTime = DateTime.UtcNow;
                 order.PaymentStatus = PaymentStatus.Paid;
-                
-                // Auto-award loyalty points
+
+                // Make driver available again - removed as drivers can take multiple orders
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Award loyalty points AFTER saving the main order changes
+            if (newStatus == OrderStatus.Delivered)
+            {
                 try
                 {
                     await _loyaltyService.AwardPointsAsync(
-                        order.UserId.ToString(), 
-                        order.Id, 
+                        order.UserId.ToString(),
+                        order.Id,
                         order.Total);
                 }
                 catch (Exception ex)
                 {
                     // Log error but don't fail the status update
-                    // Points can be awarded manually if needed
                     _logger.LogError(ex, "Failed to award loyalty points for order {OrderId}", order.Id);
                 }
             }
 
-            await _context.SaveChangesAsync();            // Send real-time notification
-            await _notificationService.NotifyStatusUpdate(
-                orderId, 
-                order.UserId.ToString(), 
-                newStatus);
+            // Send real-time notification
+            try
+            {
+                await _notificationService.NotifyStatusUpdate(
+                    orderId,
+                    order.UserId.ToString(),
+                    newStatus);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send notification for order {OrderId}", order.Id);
+            }
 
             // Send status update email
-            var user = await _context.Users.FindAsync(order.UserId);
-            if (user?.Email != null)
+            try
             {
-                await _emailService.SendOrderStatusUpdateAsync(user.Email, order.OrderNumber, newStatus.ToString());
+                var user = await _context.Users.FindAsync(order.UserId);
+                if (user?.Email != null)
+                {
+                    await _emailService.SendOrderStatusUpdateAsync(user.Email, order.OrderNumber, newStatus.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send email for order {OrderId}", order.Id);
             }
         }
 
@@ -568,7 +631,8 @@ public class OrderService : IOrderService
                     a.NameEn,
                     a.Price
                 )).ToList()
-            )).ToList()
+            )).ToList(),
+            order.Delivery?.NameEn
         );
     }
 }

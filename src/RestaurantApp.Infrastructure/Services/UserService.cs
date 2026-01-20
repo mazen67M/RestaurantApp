@@ -67,6 +67,7 @@ public class UserService : IUserService
 
         // Get users with their order statistics
         var users = await query
+            .AsNoTracking()
             .OrderByDescending(u => u.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -127,6 +128,7 @@ public class UserService : IUserService
     public async Task<ApiResponse<UserDetailsDto>> GetUserByIdAsync(int id)
     {
         var user = await _context.Users
+            .AsNoTracking()
             .Include(u => u.Orders)
             .FirstOrDefaultAsync(u => u.Id == id);
 

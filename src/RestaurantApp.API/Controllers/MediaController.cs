@@ -22,11 +22,17 @@ public class MediaController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest("No file uploaded");
 
-        // Validate file type
+        // Validate file type extension
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension))
             return BadRequest("Invalid file type. Only JPG, PNG and WebP are allowed.");
+
+        // SECURITY: Validate file content (Magic Bytes)
+        if (!await ValidateMagicBytes(file))
+        {
+            return BadRequest("File content does not match its extension.");
+        }
 
         // Create unique filename
         var fileName = $"{Guid.NewGuid()}{extension}";
@@ -48,5 +54,31 @@ public class MediaController : ControllerBase
         var imageUrl = $"{baseUrl}/uploads/{fileName}";
 
         return Ok(new { ImageUrl = imageUrl });
+    }
+
+    private async Task<bool> ValidateMagicBytes(IFormFile file)
+    {
+        using var stream = file.OpenReadStream();
+        using var reader = new BinaryReader(stream);
+        
+        if (file.Length < 4) return false;
+
+        byte[] bytes = reader.ReadBytes(4);
+        string hex = BitConverter.ToString(bytes).Replace("-", "");
+
+        // Common Image Signatures
+        // JPG: FF-D8-FF
+        // PNG: 89-50-4E-47
+        // WEBP: 52-49-46-46 (RIFF...)
+        
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        
+        return extension switch
+        {
+            ".jpg" or ".jpeg" => hex.StartsWith("FFD8FF"),
+            ".png" => hex.StartsWith("89504E47"),
+            ".webp" => hex.StartsWith("52494646"), // RIFF
+            _ => false
+        };
     }
 }

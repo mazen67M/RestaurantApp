@@ -18,6 +18,7 @@ public class RestaurantService : IRestaurantService
     public async Task<ApiResponse<RestaurantDto>> GetRestaurantAsync()
     {
         var restaurant = await _context.Restaurants
+            .AsNoTracking()
             .FirstOrDefaultAsync(r => r.IsActive);
 
         if (restaurant == null)
@@ -93,6 +94,7 @@ public class RestaurantService : IRestaurantService
         }
 
         var branches = await query
+            .AsNoTracking()
             .OrderBy(b => b.NameEn)
             .ToListAsync();
 
@@ -132,6 +134,7 @@ public class RestaurantService : IRestaurantService
     public async Task<ApiResponse<BranchDto>> GetBranchAsync(int id)
     {
         var branch = await _context.Branches
+            .AsNoTracking()
             .FirstOrDefaultAsync(b => b.Id == id && b.IsActive);
 
         if (branch == null)
@@ -166,6 +169,7 @@ public class RestaurantService : IRestaurantService
     public async Task<ApiResponse<BranchDto>> GetNearestBranchAsync(decimal latitude, decimal longitude)
     {
         var branches = await _context.Branches
+            .AsNoTracking()
             .Where(b => b.IsActive && b.AcceptingOrders)
             .ToListAsync();
 

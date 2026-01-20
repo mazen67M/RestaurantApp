@@ -11,6 +11,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     {
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        
+        // Suppress the PendingModelChangesWarning
+        optionsBuilder.ConfigureWarnings(warnings =>
+            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+
     public DbSet<Restaurant> Restaurants => Set<Restaurant>();
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<MenuCategory> MenuCategories => Set<MenuCategory>();

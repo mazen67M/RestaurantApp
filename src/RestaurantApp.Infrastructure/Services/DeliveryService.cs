@@ -171,17 +171,23 @@ public class DeliveryService : IDeliveryService
             return ApiResponse<bool>.ErrorResponse("Delivery not found");
         }
 
-        if (!delivery.IsActive || !delivery.IsAvailable)
+        if (!delivery.IsActive)
         {
-            return ApiResponse<bool>.ErrorResponse("Delivery is not available");
+            return ApiResponse<bool>.ErrorResponse("Delivery driver is not active");
         }
 
-        order.DeliveryId = deliveryId;
-        order.AssignedToDeliveryAt = DateTime.UtcNow;
-        order.Status = OrderStatus.OutForDelivery;
+        // Only increment if this is a NEW assignment for this order/driver pair
+        if (order.DeliveryId != deliveryId)
+        {
+            order.DeliveryId = deliveryId;
+            order.AssignedToDeliveryAt = DateTime.UtcNow;
+            
+            // Increment total orders for the driver
+            delivery.TotalOrders++;
+        }
 
-        // Update delivery stats
-        delivery.TotalOrders++;
+        // Always ensure status is set to Delivered as requested
+        order.Status = OrderStatus.Delivered;
 
         await _context.SaveChangesAsync();
 

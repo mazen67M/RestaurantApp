@@ -1,18 +1,19 @@
 @using Microsoft.AspNetCore.Components.Routing
 @using RestaurantApp.Web.Services
 @inject NotificationService NotificationService
+@inject SidebarService SidebarService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 
-<aside class="sidebar @(IsCollapsed ? "collapsed" : "")">
+<aside class="sidebar @(SidebarService.IsDesktopCollapsed ? "collapsed" : "") @(SidebarService.IsSidebarOpen ? "mobile-open" : "")">
     <div class="sidebar-header">
         <div class="brand">
             <i class="bi bi-shop"></i>
             <span class="brand-text">Restaurant</span>
         </div>
-        <button class="toggle-btn" @onclick="Toggle">
-            <i class="bi @(IsCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+        <button class="toggle-btn" @onclick="SidebarService.ToggleDesktop">
+            <i class="bi @(SidebarService.IsDesktopCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
         </button>
     </div>
 
@@ -32,6 +33,12 @@
                     {
                         <span class="badge bg-danger">@NotificationService.PendingOrdersCount</span>
                     }
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/admin/kitchen">
+                    <i class="bi bi-fire"></i>
+                    <span>Kitchen</span>
                 </NavLink>
             </li>
             <li class="nav-item">
@@ -100,21 +107,22 @@
 </aside>
 
 @code {
-    private bool IsCollapsed { get; set; } = false;
-
-    private void Toggle()
-    {
-        IsCollapsed = !IsCollapsed;
-        StateHasChanged();
-    }
-
     protected override void OnInitialized()
     {
         NotificationService.OnChange += StateHasChanged;
+        SidebarService.OnChange += StateHasChanged;
+        Navigation.LocationChanged += HandleLocationChanged;
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        SidebarService.CloseMobile();
     }
 
     public void Dispose()
     {
         NotificationService.OnChange -= StateHasChanged;
+        SidebarService.OnChange -= StateHasChanged;
+        Navigation.LocationChanged -= HandleLocationChanged;
     }
 }

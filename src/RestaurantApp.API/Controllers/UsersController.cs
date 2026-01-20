@@ -55,6 +55,14 @@ public class UsersController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
     {
+        var currentUserId = GetUserId();
+        
+        // IDOR Protection: Check if user can modify this user
+        if (!await _authService.CanAccessUserAsync(currentUserId, id))
+        {
+            return Forbid();
+        }
+
         var result = await _userService.UpdateUserAsync(id, dto);
         if (!result.Success)
         {

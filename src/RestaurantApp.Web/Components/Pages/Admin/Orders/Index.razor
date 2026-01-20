@@ -2,17 +2,19 @@
 @layout AdminLayout
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
 @attribute [Authorize(Roles = "Admin")]
 @inject NavigationManager Navigation
 @inject RestaurantApp.Web.Services.OrderApiService OrderApi
 @inject RestaurantApp.Web.Services.DeliveryApiService DeliveryApi
 @inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
 <PageTitle>Orders - Restaurant Admin</PageTitle>
 
 <div class="orders-page">
     <!-- Page Header -->
-    <div class="page-header">
+    <div class="page-header d-print-none">
         <div>
             <h1 class="page-title">Orders</h1>
             <p class="page-subtitle">Manage and track all customer orders</p>
@@ -25,25 +27,24 @@
     </div>
 
     <!-- Filters & Search -->
-    <div class="filters-bar">
+    <div class="filters-bar d-print-none">
         <div class="search-box">
             <i class="bi bi-search"></i>
-            <input type="text" placeholder="Search orders..." @bind="SearchQuery" @bind:event="oninput" />
+            <input type="text" placeholder="Search by order #, customer name, phone..." @bind="SearchQuery" @bind:event="oninput" />
         </div>
 
-        <div class="filter-group">
-            <select class="form-select" @bind="StatusFilter">
+        <div class="filter-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <select class="form-select" style="width: auto;" @bind="StatusFilter">
                 <option value="">All Status</option>
                 <option value="Pending">Pending</option>
                 <option value="Confirmed">Confirmed</option>
                 <option value="Preparing">Preparing</option>
                 <option value="Ready">Ready</option>
-                <option value="OutForDelivery">Out for Delivery</option>
                 <option value="Delivered">Delivered</option>
                 <option value="Cancelled">Cancelled</option>
             </select>
 
-            <select class="form-select" @bind="BranchFilter">
+            <select class="form-select" style="width: auto;" @bind="BranchFilter">
                 <option value="">All Branches</option>
                 @foreach (var branch in Branches)
                 {
@@ -51,12 +52,34 @@
                 }
             </select>
 
-            <input type="date" class="form-control" @bind="DateFilter" />
+            <div style="display: flex; gap: 0.25rem; align-items: center;">
+                <label style="white-space: nowrap; margin: 0;">From:</label>
+                <input type="date" class="form-control" style="width: auto;" @bind="FromDateFilter" />
+            </div>
+
+            <div style="display: flex; gap: 0.25rem; align-items: center;">
+                <label style="white-space: nowrap; margin: 0;">To:</label>
+                <input type="date" class="form-control" style="width: auto;" @bind="ToDateFilter" />
+            </div>
+
+            <button class="btn btn-outline-secondary" @onclick="ClearFilters" title="Clear all filters">
+                <i class="bi bi-x-circle"></i> Clear
+            </button>
+
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-download"></i> Export
+                </button>
+                <ul class="dropdown-menu">
+                    <li><button class="dropdown-item" type="button" @onclick="ExportToExcel"><i class="bi bi-file-earmark-excel"></i> Export to Excel</button></li>
+                    <li><button class="dropdown-item" type="button" @onclick="ExportToPDF"><i class="bi bi-file-earmark-pdf"></i> Export to PDF</button></li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <!-- Status Tabs -->
-    <div class="status-tabs">
+    <div class="status-tabs d-print-none">
         <button class="tab @(ActiveTab == "all" ? "active" : "")" @onclick="@(() => SetTab("all"))">
             All Orders
             <span class="count">@Orders.Count</span>
@@ -84,7 +107,7 @@
     </div>
 
     <!-- Orders Table -->
-    <div class="card">
+    <div class="card d-print-none">
         <div class="table-responsive">
             <table class="table">
                 <thead>
@@ -131,7 +154,7 @@
                                 <td>
                                     <div class="customer-info">
                                         <span class="customer-name">@order.CustomerName</span>
-                                        <span class="customer-phone">@order.Phone</span>
+                                        <span class="customer-phone">@MaskPhone(order.Phone)</span>
                                     </div>
                                 </td>
                                 <td>@order.BranchName</td>
@@ -141,6 +164,12 @@
                                     <span class="status-badge @GetStatusClass(order.Status)">
                                         @order.Status
                                     </span>
+                                    @if (!string.IsNullOrEmpty(order.DeliveryName))
+                                    {
+                                        <div class="small text-muted mt-1">
+                                            <i class="bi bi-person"></i> @order.DeliveryName
+                                        </div>
+                                    }
                                 </td>
                                 <td>
                                     <span class="order-type @order.OrderType.ToLower()">
@@ -154,24 +183,27 @@
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="@(() => ViewOrder(order.Id))" title="View Details">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="@(async () => await ViewOrder(order.Id))" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </button>
-                                        @if (order.Status == "Ready" && order.OrderType == "Delivery")
-                                        {
-                                            <button class="btn btn-sm btn-outline-warning" @onclick="@(() => ShowAssignDeliveryModal(order.Id))" title="Assign Delivery">
-                                                <i class="bi bi-truck"></i>
-                                            </button>
-                                        }
+                                        
+
                                         @if (order.Status != "Delivered" && order.Status != "Cancelled")
                                         {
-                                            <button class="btn btn-sm btn-outline-success" @onclick="@(() => UpdateStatus(order.Id))" title="Update Status">
+                                            <button class="btn btn-sm btn-outline-success" @onclick="@(async () => await UpdateStatus(order.Id))" title="Update Status">
                                                 <i class="bi bi-arrow-right-circle"></i>
                                             </button>
                                         }
                                         <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => PrintOrder(order.Id))" title="Print">
                                             <i class="bi bi-printer"></i>
                                         </button>
+                                        
+                                        @if (order.Status == "Ready" || order.Status == "Delivered")
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning ms-1" @onclick="@(() => ShowAssignDeliveryModal(order.Id))" title="Assign Delivery">
+                                                <i class="bi bi-truck"></i>
+                                            </button>
+                                        }
                                     </div>
                                 </td>
                             </tr>
@@ -182,7 +214,7 @@
         </div>
 
         <!-- Pagination -->
-        <div class="pagination-wrapper">
+        <div class="pagination-wrapper d-print-none">
             <div class="pagination-info">
                 Showing @((CurrentPage - 1) * PageSize + 1) to @Math.Min(CurrentPage * PageSize, TotalOrders) of @TotalOrders orders
             </div>
@@ -217,7 +249,7 @@
 @if (SelectedOrder != null)
 {
     <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="order-modal">
+    <div class="order-modal" style="max-height: 90vh; overflow-y: auto;">
         <div class="modal-header">
             <h4>Order #@SelectedOrder.OrderNumber</h4>
             <button class="close-btn" @onclick="CloseModal">
@@ -225,20 +257,123 @@
             </button>
         </div>
         <div class="modal-body">
+            <!-- Order Info -->
             <div class="order-detail-section">
-                <h5>Customer Information</h5>
-                <p><strong>Name:</strong> @SelectedOrder.CustomerName</p>
-                <p><strong>Phone:</strong> @SelectedOrder.Phone</p>
-                <p><strong>Address:</strong> @SelectedOrder.DeliveryAddress</p>
+                <h5>Order Information</h5>
+                <div class="row">
+                    <div class="col-6">
+                        <p><strong>Customer:</strong> @SelectedOrder.CustomerName</p>
+                        <p><strong>Phone:</strong> @SelectedOrder.Phone</p>
+                        <p><strong>Branch:</strong> @SelectedOrder.BranchName</p>
+                    </div>
+                    <div class="col-6">
+                        <p><strong>Date:</strong> @SelectedOrder.CreatedAt.ToString("dd MMM yyyy, HH:mm")</p>
+                        <p><strong>Status:</strong> <span class="badge @GetStatusClass(SelectedOrder.Status)">@SelectedOrder.Status</span></p>
+                        @if (!string.IsNullOrEmpty(SelectedOrder.DeliveryAddress))
+                        {
+                            <p><strong>Address:</strong> @SelectedOrder.DeliveryAddress</p>
+                        }
+                    </div>
+                </div>
+                @if (SelectedOrderDetail?.CustomerNotes != null)
+                {
+                    <p><strong>Customer Notes:</strong> @SelectedOrderDetail.CustomerNotes</p>
+                }
             </div>
+
+            <!-- Order Items -->
             <div class="order-detail-section">
-                <h5>Order Status</h5>
-                <div class="status-update-buttons">
-                    <button class="btn @GetStatusBtnClass("Pending")" @onclick="@(() => SetOrderStatus("Pending"))">Pending</button>
-                    <button class="btn @GetStatusBtnClass("Confirmed")" @onclick="@(() => SetOrderStatus("Confirmed"))">Confirmed</button>
-                    <button class="btn @GetStatusBtnClass("Preparing")" @onclick="@(() => SetOrderStatus("Preparing"))">Preparing</button>
-                    <button class="btn @GetStatusBtnClass("Ready")" @onclick="@(() => SetOrderStatus("Ready"))">Ready</button>
-                    <button class="btn @GetStatusBtnClass("Delivered")" @onclick="@(() => SetOrderStatus("Delivered"))">Delivered</button>
+                <h5>Order Items</h5>
+                @if (SelectedOrderDetail?.Items != null && SelectedOrderDetail.Items.Any())
+                {
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in SelectedOrderDetail.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        @item.MenuItemNameEn
+                                        @if (item.AddOns?.Any() == true)
+                                        {
+                                            <br /><small class="text-muted">+ @string.Join(", ", item.AddOns.Select(a => a.NameEn))</small>
+                                        }
+                                        @if (!string.IsNullOrEmpty(item.Notes))
+                                        {
+                                            <br /><small class="text-muted">Note: @item.Notes</small>
+                                        }
+                                    </td>
+                                    <td>@item.Quantity</td>
+                                    <td>@item.UnitPrice.ToString("C")</td>
+                                    <td>@item.TotalPrice.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted">@SelectedOrder.ItemCount item(s)</p>
+                }
+            </div>
+
+            <!-- Order Summary -->
+            <div class="order-detail-section">
+                <h5>Order Summary</h5>
+                <div class="d-flex justify-content-between">
+                    <span>Subtotal:</span>
+                    <span>@((SelectedOrderDetail?.SubTotal ?? SelectedOrder.Total).ToString("C"))</span>
+                </div>
+                @if (SelectedOrderDetail?.DeliveryFee > 0)
+                {
+                    <div class="d-flex justify-content-between">
+                        <span>Delivery Fee:</span>
+                        <span>@SelectedOrderDetail.DeliveryFee.ToString("C")</span>
+                    </div>
+                }
+                @if (SelectedOrderDetail?.Discount > 0)
+                {
+                    <div class="d-flex justify-content-between text-success">
+                        <span>Discount:</span>
+                        <span>-@SelectedOrderDetail.Discount.ToString("C")</span>
+                    </div>
+                }
+                <hr />
+                <div class="d-flex justify-content-between fw-bold fs-5">
+                    <span>Total:</span>
+                    <span>@SelectedOrder.Total.ToString("C")</span>
+                </div>
+            </div>
+
+            <!-- Order Status -->
+            <div class="order-detail-section">
+                <h5>Update Status</h5>
+                <div class="status-update-buttons" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <button class="btn @GetStatusBtnClass("Pending")" @onclick="@(() => SetOrderStatus("Pending"))">
+                        <i class="bi bi-clock"></i> Pending
+                    </button>
+                    <button class="btn @GetStatusBtnClass("Confirmed")" @onclick="@(() => SetOrderStatus("Confirmed"))">
+                        <i class="bi bi-check-circle"></i> Confirmed
+                    </button>
+                    <button class="btn @GetStatusBtnClass("Preparing")" @onclick="@(() => SetOrderStatus("Preparing"))">
+                        <i class="bi bi-fire"></i> Preparing
+                    </button>
+                    <button class="btn @GetStatusBtnClass("Ready")" @onclick="@(() => SetOrderStatus("Ready"))">
+                        <i class="bi bi-box-seam"></i> Ready
+                    </button>
+                    <button class="btn @GetStatusBtnClass("Delivered")" @onclick="@(() => SetOrderStatus("Delivered"))">
+                        <i class="bi bi-check2-all"></i> Delivered
+                    </button>
+                    <button class="btn @GetStatusBtnClass("Cancelled")" @onclick="@(() => SetOrderStatus("Cancelled"))" style="background-color: #dc3545; border-color: #dc3545; color: white;">
+                        <i class="bi bi-x-circle"></i> Cancel Order
+                    </button>
                 </div>
             </div>
 
@@ -250,20 +385,23 @@
                     <p>Date: @SelectedOrder.CreatedAt.ToString("g")</p>
                 </div>
                 <div class="receipt-body">
-                    <p><strong>Customer:</strong> @SelectedOrder.CustomerName</p>
-                    <p><strong>Phone:</strong> @SelectedOrder.Phone</p>
                     <p><strong>Type:</strong> @SelectedOrder.OrderType</p>
-                    @if (SelectedOrder.OrderType == "Delivery")
+                    @if (SelectedOrder.OrderType == "Delivery" && !string.IsNullOrEmpty(SelectedOrder.DeliveryAddress))
                     {
                         <p><strong>Address:</strong> @SelectedOrder.DeliveryAddress</p>
                     }
                     <hr />
-                    <div class="receipt-items">
-                        <div class="d-flex justify-content-between">
-                            <span>Items (@SelectedOrder.ItemCount)</span>
-                            <span>@SelectedOrder.Total.ToString("C")</span>
-                        </div>
-                    </div>
+                    @if (SelectedOrderDetail?.Items != null)
+                    {
+                        @foreach (var item in SelectedOrderDetail.Items)
+                        {
+                            <div class="d-flex justify-content-between">
+                                <span>@item.Quantity x @item.MenuItemNameEn</span>
+                                <span>@item.TotalPrice.ToString("C")</span>
+                            </div>
+                        }
+                    }
+                    <hr />
                     <div class="receipt-total text-end mt-3">
                         <h5>Total: @SelectedOrder.Total.ToString("C")</h5>
                     </div>
@@ -320,7 +458,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseAssignModal">Cancel</button>
-                    <button type="button" class="btn btn-primary" @onclick="AssignDelivery" disabled="@(!SelectedDeliveryId.HasValue)">
+                    <button type="button" class="btn btn-primary" @onclick="AssignDelivery" disabled="@(IsProcessing || !SelectedDeliveryId.HasValue)">
+                        @if (IsProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
                         Assign Driver
                     </button>
                 </div>
@@ -331,19 +473,26 @@
 
 @code {
     private bool IsLoading { get; set; } = true;
+    
+    [Parameter, SupplyParameterFromQuery(Name = "search")]
+    public string? SearchParam { get; set; }
+
     private string SearchQuery { get; set; } = "";
     private string StatusFilter { get; set; } = "";
     private string BranchFilter { get; set; } = "";
-    private DateTime? DateFilter { get; set; }
+    private DateTime? FromDateFilter { get; set; }
+    private DateTime? ToDateFilter { get; set; }
     private string ActiveTab { get; set; } = "all";
     private int CurrentPage { get; set; } = 1;
     private int PageSize { get; set; } = 10;
     private int TotalOrders { get; set; } = 0;
     private int TotalPages => (int)Math.Ceiling((double)TotalOrders / PageSize);
+    private bool IsProcessing { get; set; } = false;
     private string Message { get; set; } = "";
     private string MessageType { get; set; } = "success";
 
     private OrderDto? SelectedOrder { get; set; }
+    private RestaurantApp.Web.Services.OrderDetailDto? SelectedOrderDetail { get; set; }
     private List<OrderDto> Orders { get; set; } = new();
     private List<BranchDto> Branches { get; set; } = new();
 
@@ -355,9 +504,67 @@
         .Where(o => string.IsNullOrEmpty(StatusFilter) || o.Status == StatusFilter)
         .OrderByDescending(o => o.CreatedAt);
 
+    private HubConnection? _hubConnection;
+
     protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrEmpty(SearchParam))
+        {
+            SearchQuery = SearchParam;
+        }
         await LoadData();
+        await InitializeSignalR();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(SearchParam) && SearchQuery != SearchParam)
+        {
+            SearchQuery = SearchParam;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+            // Build SignalR connection to API
+            var apiUrl = Navigation.BaseUri.Replace("5119", "5009"); // Web runs on 5119, API on 5009
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl($"{apiUrl}hubs/orders")
+                .WithAutomaticReconnect()
+                .Build();
+
+            // Listen for new orders
+            _hubConnection.On<object>("NewOrder", async (order) =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await ShowMessageAsync("🔔 New order received!", "success");
+                    await RefreshOrders();
+                });
+            });
+
+            // Listen for order status updates
+            _hubConnection.On<object>("OrderStatusUpdated", async (update) =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await RefreshOrders();
+                });
+            });
+
+            // Start connection
+            await _hubConnection.StartAsync();
+            
+            // Join admin group to receive notifications
+            await _hubConnection.InvokeAsync("JoinAdminGroup");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection error: {ex.Message}");
+        }
     }
 
     private async Task LoadData()
@@ -379,7 +586,8 @@
                 Status = o.Status ?? "Pending",
                 OrderType = o.OrderType ?? "Delivery",
                 DeliveryAddress = "", // Summary doesn't have address
-                CreatedAt = o.CreatedAt
+                CreatedAt = o.CreatedAt,
+                DeliveryName = o.DeliveryName
             }).ToList();
             
             TotalOrders = Orders.Count;
@@ -420,7 +628,9 @@
                 "Confirmed" => "btn-info",
                 "Preparing" => "btn-primary",
                 "Ready" => "btn-success",
+                "OutForDelivery" => "btn-info",
                 "Delivered" => "btn-success",
+                "Cancelled" => "btn-danger",
                 _ => "btn-secondary"
             };
         }
@@ -453,14 +663,48 @@
         await ShowMessageAsync("Orders refreshed from database!", "success");
     }
 
-    private void ViewOrder(int orderId)
+    private async Task ViewOrder(int orderId)
     {
-        SelectedOrder = Orders.FirstOrDefault(o => o.Id == orderId);
+        try
+        {
+            // Fetch full order details from API
+            SelectedOrderDetail = await OrderApi.GetOrderByIdAsync(orderId);
+            if (SelectedOrderDetail != null)
+            {
+                SelectedOrder = new OrderDto
+                {
+                    Id = SelectedOrderDetail.Id,
+                    OrderNumber = SelectedOrderDetail.OrderNumber,
+                    CustomerName = "", // Will get from Items
+                    Phone = "",
+                    BranchName = SelectedOrderDetail.Branch?.NameEn ?? "",
+                    ItemCount = SelectedOrderDetail.Items.Count,
+                    Total = SelectedOrderDetail.Total,
+                    Status = SelectedOrderDetail.StatusText,
+                    OrderType = SelectedOrderDetail.OrderTypeText,
+                    DeliveryAddress = SelectedOrderDetail.DeliveryAddressLine ?? "",
+                    CreatedAt = SelectedOrderDetail.CreatedAt
+                };
+            }
+            else
+            {
+                // Fallback to local data
+                SelectedOrder = Orders.FirstOrDefault(o => o.Id == orderId);
+                SelectedOrderDetail = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading order details: {ex.Message}");
+            // Fallback to local data if API fails
+            SelectedOrder = Orders.FirstOrDefault(o => o.Id == orderId);
+            SelectedOrderDetail = null;
+        }
     }
 
-    private void UpdateStatus(int orderId)
+    private async Task UpdateStatus(int orderId)
     {
-        ViewOrder(orderId);
+        await ViewOrder(orderId);
     }
 
     private async Task SetOrderStatus(string status)
@@ -469,29 +713,42 @@
         {
             try
             {
+                if (status == "Cancelled")
+                {
+                    bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to cancel order #{SelectedOrder.OrderNumber}? This action cannot be undone.");
+                    if (!confirmed) return;
+                }
+                
+                Console.WriteLine($"Attempting to update order {SelectedOrder.Id} to status: {status}");
+                
                 // Call API to update status
                 var success = await OrderApi.UpdateOrderStatusAsync(SelectedOrder.Id, status);
                 if (success)
                 {
                     SelectedOrder.Status = status;
+                    if (SelectedOrderDetail != null)
+                    {
+                        SelectedOrderDetail.Status = status; // Direct assignment now
+                    }
+                    
                     var order = Orders.FirstOrDefault(o => o.Id == SelectedOrder.Id);
                     if (order != null) order.Status = status;
                     
-                    await ShowMessageAsync($"Order #{SelectedOrder.OrderNumber} is now {status}. Customer notified via app!", "success");
+                    await ShowMessageAsync($"✓ Order #{SelectedOrder.OrderNumber} is now {status}", "success");
                     StateHasChanged();
+                    
+                    // Refresh data to get latest
+                    await LoadData();
                 }
                 else
                 {
-                    await ShowMessageAsync("Failed to update status. Please try again.", "error");
+                    await ShowMessageAsync("❌ Failed to update status. Check console for details.", "error");
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Update locally even if API fails
-                SelectedOrder.Status = status;
-                var order = Orders.FirstOrDefault(o => o.Id == SelectedOrder.Id);
-                if (order != null) order.Status = status;
-                await ShowMessageAsync($"Status updated locally. Sync may be delayed.", "success");
+                Console.WriteLine($"Exception updating status: {ex.Message}\n{ex.StackTrace}");
+                await ShowMessageAsync($"❌ Error: {ex.Message}", "error");
             }
         }
     }
@@ -549,6 +806,13 @@
         public string OrderType { get; set; } = "";
         public string DeliveryAddress { get; set; } = "";
         public DateTime CreatedAt { get; set; }
+        public string? DeliveryName { get; set; }
+    }
+
+    private string MaskPhone(string phone)
+    {
+        if (string.IsNullOrEmpty(phone) || phone.Length < 7) return phone;
+        return $"{phone.Substring(0, 3)}****{phone.Substring(phone.Length - 4)}";
     }
 
     private class BranchDto
@@ -589,11 +853,16 @@
 
     private async Task AssignDelivery()
     {
+        if (IsProcessing) return;
+        
         if (!AssignOrderId.HasValue || !SelectedDeliveryId.HasValue)
         {
             await ShowMessageAsync("Please select a delivery driver", "error");
             return;
         }
+
+        IsProcessing = true;
+        StateHasChanged();
 
         try
         {
@@ -601,6 +870,23 @@
             if (success)
             {
                 await ShowMessageAsync("Delivery assigned successfully!", "success");
+                
+                // Update local state for immediate feedback
+                var driverName = AvailableDeliveries?.FirstOrDefault(d => d.Id == SelectedDeliveryId.Value)?.NameEn;
+
+                if (SelectedOrder != null && SelectedOrder.Id == AssignOrderId.Value)
+                {
+                    SelectedOrder.Status = "Delivered";
+                    SelectedOrder.DeliveryName = driverName;
+                }
+                
+                var listOrder = Orders.FirstOrDefault(o => o.Id == AssignOrderId.Value);
+                if (listOrder != null)
+                {
+                    listOrder.Status = "Delivered";
+                    listOrder.DeliveryName = driverName;
+                }
+                
                 CloseAssignModal();
                 await LoadData();
             }
@@ -612,6 +898,43 @@
         catch (Exception ex)
         {
             await ShowMessageAsync($"Error assigning delivery: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        SearchQuery = "";
+        StatusFilter = "";
+        BranchFilter = "";
+        FromDateFilter = null;
+        ToDateFilter = null;
+        StateHasChanged();
+    }
+
+    private async Task ExportToExcel()
+    {
+        await ShowMessageAsync("📊 Exporting to Excel... (Feature coming soon)", "info");
+        // TODO: Implement Excel export
+        // Will need to call API endpoint: /api/admin/orders/export/excel
+    }
+
+    private async Task ExportToPDF()
+    {
+        await ShowMessageAsync("📄 Exporting to PDF... (Feature coming soon)", "info");
+        // TODO: Implement PDF export
+        // Will need to call API endpoint: /api/admin/orders/export/pdf
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
         }
     }
 }

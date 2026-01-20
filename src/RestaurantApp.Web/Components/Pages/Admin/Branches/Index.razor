@@ -5,6 +5,7 @@
 @attribute [Authorize(Roles = "Admin")]
 @inject RestaurantApp.Web.Services.BranchApiService BranchApi
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 
 <PageTitle>Branches - Restaurant Admin</PageTitle>
@@ -413,6 +414,10 @@
     {
         try
         {
+            var action = branch.IsActive ? "close" : "open";
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to {action} branch '{branch.NameEn}'?");
+            if (!confirmed) return;
+            
             var updateRequest = new RestaurantApp.Web.Services.UpdateBranchRequest
             {
                 IsActive = !branch.IsActive
