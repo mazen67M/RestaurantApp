@@ -1,5 +1,11 @@
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\.msCoverageSourceRootsMapping_RestaurantApp.UnitTests
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\CoverletSourceRootsMapping_RestaurantApp.UnitTests
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.csproj.AssemblyReference.cache
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.GeneratedMSBuildEditorConfig.editorconfig
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.AssemblyInfoInputs.cache
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.AssemblyInfo.cs
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.csproj.CoreCompileInputs.cache
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.sourcelink.json
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\testhost.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\xunit.abstractions.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\testhost.exe
@@ -11,6 +17,9 @@ H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\RestaurantApp.
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Azure.Core.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Azure.Identity.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Castle.Core.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\FluentValidation.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\FluentValidation.AspNetCore.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\FluentValidation.DependencyInjectionExtensions.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.AspNetCore.Identity.EntityFrameworkCore.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Bcl.AsyncInterfaces.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Bcl.Cryptography.dll
@@ -23,6 +32,7 @@ H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Enti
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.SqlServer.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.Caching.Abstractions.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.Caching.Memory.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.Caching.StackExchangeRedis.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.DependencyInjection.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Extensions.Logging.dll
@@ -47,6 +57,8 @@ H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.Test
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Microsoft.VisualStudio.TestPlatform.Common.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Moq.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Newtonsoft.Json.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\Pipelines.Sockets.Unofficial.dll
+H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\StackExchange.Redis.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\System.ClientModel.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\System.Configuration.ConfigurationManager.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\System.IdentityModel.Tokens.Jwt.dll
@@ -144,15 +156,9 @@ H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\RestaurantApp.
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\RestaurantApp.Domain.pdb
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\RestaurantApp.Application.pdb
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\bin\Debug\net10.0\RestaurantApp.Infrastructure.pdb
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.csproj.AssemblyReference.cache
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.GeneratedMSBuildEditorConfig.editorconfig
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.AssemblyInfoInputs.cache
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.AssemblyInfo.cs
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.csproj.CoreCompileInputs.cache
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\Restaura.D79592C8.Up2Date
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\refint\RestaurantApp.UnitTests.dll
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.pdb
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.genruntimeconfig.cache
 H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\ref\RestaurantApp.UnitTests.dll
-H:\Restaurant APP\tests\RestaurantApp.UnitTests\obj\Debug\net10.0\RestaurantApp.UnitTests.sourcelink.json

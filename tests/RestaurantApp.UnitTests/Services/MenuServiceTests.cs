@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using RestaurantApp.Application.Common;
 using RestaurantApp.Application.DTOs.Menu;
+using RestaurantApp.Application.Interfaces;
 using RestaurantApp.Domain.Entities;
 using RestaurantApp.Infrastructure.Data;
 using RestaurantApp.Infrastructure.Services;
@@ -15,12 +17,14 @@ namespace RestaurantApp.UnitTests.Services;
 public class MenuServiceTests
 {
     private readonly DbContextOptions<ApplicationDbContext> _options;
+    private readonly Mock<ICacheService> _cacheServiceMock;
 
     public MenuServiceTests()
     {
         _options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
+        _cacheServiceMock = new Mock<ICacheService>();
     }
 
     [Fact]
@@ -32,7 +36,7 @@ public class MenuServiceTests
         context.MenuCategories.Add(new MenuCategory { NameAr = "C2", NameEn = "C2", IsActive = false, RestaurantId = 1 });
         await context.SaveChangesAsync();
 
-        var service = new MenuService(context);
+        var service = new MenuService(context, _cacheServiceMock.Object);
 
         // Act
         var result = await service.GetCategoriesAsync(includeInactive: false);
@@ -63,7 +67,7 @@ public class MenuServiceTests
         }
         await context.SaveChangesAsync();
 
-        var service = new MenuService(context);
+        var service = new MenuService(context, _cacheServiceMock.Object);
 
         // Act
         var result = await service.GetAllItemsAsync(page: 2, pageSize: 3);
@@ -83,7 +87,7 @@ public class MenuServiceTests
         context.MenuItems.Add(item);
         await context.SaveChangesAsync();
 
-        var service = new MenuService(context);
+        var service = new MenuService(context, _cacheServiceMock.Object);
 
         // Act
         var result = await service.ToggleItemAvailabilityAsync(item.Id);

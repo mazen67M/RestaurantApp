@@ -39,7 +39,14 @@ public record AuthResponseDto(
     string Token,
     DateTime ExpiresAt,
     string Role,
-    string PreferredLanguage
+    string PreferredLanguage,
+    string RefreshToken,
+    DateTime RefreshTokenExpiresAt
+);
+
+public record RefreshTokenRequestDto(
+    [Required(ErrorMessage = "Refresh token is required")]
+    string RefreshToken
 );
 
 public record UserProfileDto(

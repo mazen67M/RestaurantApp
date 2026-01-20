@@ -6,8 +6,8 @@ H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domai
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.AssemblyInfoInputs.cache
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.AssemblyInfo.cs
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.csproj.CoreCompileInputs.cache
+H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.sourcelink.json
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.dll
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\refint\RestaurantApp.Domain.dll
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.pdb
 H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\ref\RestaurantApp.Domain.dll
-H:\Restaurant APP\src\RestaurantApp.Domain\obj\Debug\net10.0\RestaurantApp.Domain.sourcelink.json

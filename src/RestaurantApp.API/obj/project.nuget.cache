@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "t85wjdp0xt8=",
+  "dgSpecHash": "6SAAuJJwxMM=",
   "success": true,
-  "projectFilePath": "H:\\Restaurant APP\\src\\RestaurantApp.Api\\RestaurantApp.API.csproj",
+  "projectFilePath": "H:\\Restaurant APP\\src\\RestaurantApp.API\\RestaurantApp.API.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\DUBAI\\.nuget\\packages\\asp.versioning.abstractions\\8.1.0\\asp.versioning.abstractions.8.1.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\asp.versioning.http\\8.1.1\\asp.versioning.http.8.1.1.nupkg.sha512",
@@ -71,6 +71,7 @@
     "C:\\Users\\DUBAI\\.nuget\\packages\\opentelemetry.instrumentation.http\\1.11.0\\opentelemetry.instrumentation.http.1.11.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\opentelemetry.instrumentation.sqlclient\\1.11.0-beta.1\\opentelemetry.instrumentation.sqlclient.1.11.0-beta.1.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\pipelines.sockets.unofficial\\2.2.8\\pipelines.sockets.unofficial.2.2.8.nupkg.sha512",
+    "C:\\Users\\DUBAI\\.nuget\\packages\\scrutor\\3.3.0\\scrutor.3.3.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\serilog\\4.2.0\\serilog.4.2.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\serilog.aspnetcore\\8.0.0\\serilog.aspnetcore.8.0.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\serilog.extensions.hosting\\8.0.0\\serilog.extensions.hosting.8.0.0.nupkg.sha512",
@@ -82,6 +83,8 @@
     "C:\\Users\\DUBAI\\.nuget\\packages\\serilog.sinks.file\\7.0.0\\serilog.sinks.file.7.0.0.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\stackexchange.redis\\2.7.27\\stackexchange.redis.2.7.27.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore\\6.6.2\\swashbuckle.aspnetcore.6.6.2.nupkg.sha512",
+    "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore.filters\\8.0.2\\swashbuckle.aspnetcore.filters.8.0.2.nupkg.sha512",
+    "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore.filters.abstractions\\8.0.2\\swashbuckle.aspnetcore.filters.abstractions.8.0.2.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore.swagger\\6.6.2\\swashbuckle.aspnetcore.swagger.6.6.2.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore.swaggergen\\6.6.2\\swashbuckle.aspnetcore.swaggergen.6.6.2.nupkg.sha512",
     "C:\\Users\\DUBAI\\.nuget\\packages\\swashbuckle.aspnetcore.swaggerui\\6.6.2\\swashbuckle.aspnetcore.swaggerui.6.6.2.nupkg.sha512",

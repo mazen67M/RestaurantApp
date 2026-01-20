@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "H:\\Restaurant APP\\src\\RestaurantApp.Api\\RestaurantApp.API.csproj": {}
+    "H:\\Restaurant APP\\src\\RestaurantApp.API\\RestaurantApp.API.csproj": {}
   },
   "projects": {
-    "H:\\Restaurant APP\\src\\RestaurantApp.Api\\RestaurantApp.API.csproj": {
+    "H:\\Restaurant APP\\src\\RestaurantApp.API\\RestaurantApp.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "H:\\Restaurant APP\\src\\RestaurantApp.Api\\RestaurantApp.API.csproj",
+        "projectUniqueName": "H:\\Restaurant APP\\src\\RestaurantApp.API\\RestaurantApp.API.csproj",
         "projectName": "RestaurantApp.API",
-        "projectPath": "H:\\Restaurant APP\\src\\RestaurantApp.Api\\RestaurantApp.API.csproj",
+        "projectPath": "H:\\Restaurant APP\\src\\RestaurantApp.API\\RestaurantApp.API.csproj",
         "packagesPath": "C:\\Users\\DUBAI\\.nuget\\packages\\",
-        "outputPath": "H:\\Restaurant APP\\src\\RestaurantApp.Api\\obj\\",
+        "outputPath": "H:\\Restaurant APP\\src\\RestaurantApp.API\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -135,6 +135,10 @@
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[6.6.2, )"
+            },
+            "Swashbuckle.AspNetCore.Filters": {
+              "target": "Package",
+              "version": "[8.0.2, )"
             }
           },
           "imports": [

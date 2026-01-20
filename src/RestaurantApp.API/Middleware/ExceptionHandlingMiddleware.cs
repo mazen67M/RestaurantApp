@@ -1,10 +1,13 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+using RestaurantApp.Application.Common;
 
 namespace RestaurantApp.API.Middleware;
 
 /// <summary>
 /// Global exception handling middleware to catch and format all unhandled exceptions
+/// using RFC 7807 ProblemDetails
 /// </summary>
 public class ExceptionHandlingMiddleware
 {
@@ -37,63 +40,33 @@ public class ExceptionHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        context.Response.ContentType = "application/json";
+        context.Response.ContentType = "application/problem+json";
         
-        var response = new ErrorResponse
-        {
-            Success = false,
-            Message = GetErrorMessage(exception),
-            StatusCode = GetStatusCode(exception)
-        };
+        // Create RFC 7807 ProblemDetails response
+        var problemDetails = ProblemDetailsFactory.CreateExceptionProblem(
+            exception,
+            instance: context.Request.Path,
+            includeDetails: _environment.IsDevelopment());
 
-        // Only include stack trace and detailed error in development
-        if (_environment.IsDevelopment())
+        // Add trace ID for debugging
+        problemDetails.Extensions["traceId"] = context.TraceIdentifier;
+
+        // Only include stack trace in development
+        if (_environment.IsDevelopment() && exception.StackTrace != null)
         {
-            response.Details = exception.ToString();
-            response.StackTrace = exception.StackTrace;
+            problemDetails.Extensions["stackTrace"] = exception.StackTrace;
+            problemDetails.Extensions["exceptionType"] = exception.GetType().Name;
         }
 
-        context.Response.StatusCode = response.StatusCode;
+        context.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
 
         var options = new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
 
-        var json = JsonSerializer.Serialize(response, options);
+        var json = JsonSerializer.Serialize(problemDetails, options);
         await context.Response.WriteAsync(json);
     }
-
-    private static string GetErrorMessage(Exception exception)
-    {
-        return exception switch
-        {
-            UnauthorizedAccessException => "Unauthorized access",
-            ArgumentException => "Invalid request parameters",
-            KeyNotFoundException => "Resource not found",
-            InvalidOperationException => "Invalid operation",
-            _ => "An error occurred while processing your request"
-        };
-    }
-
-    private static int GetStatusCode(Exception exception)
-    {
-        return exception switch
-        {
-            UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
-            ArgumentException => (int)HttpStatusCode.BadRequest,
-            KeyNotFoundException => (int)HttpStatusCode.NotFound,
-            InvalidOperationException => (int)HttpStatusCode.BadRequest,
-            _ => (int)HttpStatusCode.InternalServerError
-        };
-    }
-}
-
-public class ErrorResponse
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public int StatusCode { get; set; }
-    public string? Details { get; set; }
-    public string? StackTrace { get; set; }
 }

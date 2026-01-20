@@ -43,7 +43,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     
     // Order Status History
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
-
+    
+    // Authentication & Security
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
 
     protected override void OnModelCreating(ModelBuilder builder)

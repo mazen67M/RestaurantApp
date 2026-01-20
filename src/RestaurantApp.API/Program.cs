@@ -30,6 +30,14 @@ Serilog.Log.Logger = new Serilog.LoggerConfiguration()
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
+// Configure Kestrel with request size limits to prevent DoS attacks
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB global limit
+    options.Limits.MaxRequestLineSize = 8192; // 8KB max request line
+    options.Limits.MaxRequestHeadersTotalSize = 32768; // 32KB max headers
+});
+
 // Add services to the container
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -37,11 +45,21 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
+// Add ProblemDetails for RFC 7807 error responses
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Instance = context.HttpContext.Request.Path;
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+    };
+});
+
 // Add FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<RestaurantApp.Application.Validators.Order.CreateOrderDtoValidator>();
 builder.Services.AddFluentValidationAutoValidation();
 
-// Configure API Behavior for validation errors
+// Configure API Behavior for validation errors with ProblemDetails
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -51,12 +69,21 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
             .SelectMany(e => e.Value!.Errors.Select(x => x.ErrorMessage))
             .ToList();
 
-        var response = RestaurantApp.Application.Common.ApiResponse.ErrorResponse(
-            "Validation failed", errors);
+        var problemDetails = RestaurantApp.Application.Common.ProblemDetailsFactory
+            .CreateValidationProblem("Validation failed", errors, context.HttpContext.Request.Path);
 
-        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(response);
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problemDetails);
     };
 });
+
+// Register Domain Services
+builder.Services.AddScoped<RestaurantApp.Application.Services.OrderPricingService>();
+builder.Services.AddScoped<RestaurantApp.Application.Services.CouponValidationService>();
+
+// Register Use Cases
+builder.Services.AddScoped<RestaurantApp.Infrastructure.UseCases.Orders.CreateOrderUseCase>();
+builder.Services.AddScoped<RestaurantApp.Infrastructure.UseCases.Orders.UpdateOrderStatusUseCase>();
+
 
 
 // Distributed Cache (Redis in production, Memory in development)
@@ -149,6 +176,8 @@ builder.Services.AddSwaggerGen(c =>
             - Offers & Coupons
             
             **Security:** All admin endpoints require JWT authentication with Admin role.
+            
+            **Error Responses:** This API uses RFC 7807 ProblemDetails for error responses.
         ",
         Contact = new OpenApiContact
         {
@@ -184,7 +213,24 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+
+    // Enable XML documentation
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = System.IO.Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (System.IO.File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
+
+    // Enable examples from Swashbuckle.AspNetCore.Filters
+    // TODO: Uncomment after installing Swashbuckle.AspNetCore.Filters package
+    // c.ExampleFilters();
 });
+
+// Register Swagger example providers
+// TODO: Uncomment after installing Swashbuckle.AspNetCore.Filters package
+// builder.Services.AddSwaggerExamplesFromAssemblyOf<RestaurantApp.API.Swagger.CreateOrderDtoExample>();
+
 
 // CORS - Environment-based configuration
 builder.Services.AddCors(options =>
